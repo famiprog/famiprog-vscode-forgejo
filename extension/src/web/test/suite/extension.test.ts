@@ -1,15 +1,23 @@
 import * as assert from 'assert';
-
-// You can import and use all API from the 'vscode' module
-// as well as import your extension to test it
 import * as vscode from 'vscode';
-// import * as myExtension from '../../extension';
+import { ForgejoFileSystemProvider } from '../../forgejoFileSystemProviderPrototype.js';
 
-suite('Web Extension Test Suite', () => {
-	vscode.window.showInformationMessage('Start all tests.');
+suite('Forgejo file system', () => {
+	const provider = new ForgejoFileSystemProvider();
+	const root = vscode.Uri.parse('forgejo://localhost:3001/forgejo/hello-world');
 
-	test('Sample test', () => {
-		assert.strictEqual(-1, [1, 2, 3].indexOf(5));
-		assert.strictEqual(-1, [1, 2, 3].indexOf(0));
+	test('lists the repository root', async () => {
+		const stat = await provider.stat(root);
+		assert.strictEqual(stat.type, vscode.FileType.Directory);
+		const entries = await provider.readDirectory(root);
+		assert.deepStrictEqual(entries, [['README.md', vscode.FileType.File]]);
+	});
+
+	test('reads README.md', async () => {
+		const uri = vscode.Uri.joinPath(root, 'README.md');
+		const stat = await provider.stat(uri);
+		assert.strictEqual(stat.type, vscode.FileType.File);
+		const text = new TextDecoder().decode(await provider.readFile(uri));
+		assert.ok(text.includes('hello-world'));
 	});
 });

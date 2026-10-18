@@ -8,13 +8,15 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onFileSystem:forgejo"
+  ],
   "browser": "./dist/web/extension.cjs",
   "contributes": {
     "commands": [
       {
-        "command": "famiprog-vscode-forgejo.helloWorld",
-        "title": "Hello World"
+        "command": "famiprog-vscode-forgejo.openRepo",
+        "title": "Forgejo: Open repo"
       }
     ]
   },
@@ -29,7 +31,9 @@
     "package-web": "yarn run check-types && yarn run lint && node esbuild.js --production",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. ."
+    "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --folder-uri=forgejo://localhost:3001/forgejo/hello-world",
+    "run-vscode-win": "zx --eval 'import { run } from \"./scripts/run-vscode-win.js\"; await run();'",
+    "vsix-install": "zx --eval 'import { install } from \"./scripts/run-vscode-win.js\"; await install();'"
   },
   "devDependencies": {
     "@types/vscode": "^1.140.0",
