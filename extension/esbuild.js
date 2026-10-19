@@ -47,7 +47,7 @@ const testBundlePlugin = {
 			}
 		});
 		build.onLoad({ filter: /[\/\\]extensionTests\.ts$/ }, async args => {
-			const testsRoot = path.join(__dirname, 'src/web/test/suite');
+			const testsRoot = path.dirname(args.path);
 			const files = await glob('*.test.{ts,tsx}', { cwd: testsRoot, posix: true });
 			return {
 				contents:
@@ -61,26 +61,29 @@ const testBundlePlugin = {
 };
 
 async function main() {
-	const ctx = await esbuild.context({
-		entryPoints: [
-			'src/web/extension.ts',
-			'src/web/test/suite/extensionTests.ts'
-		],
+	const shared = {
 		bundle: true,
 		format: 'cjs',
 		minify: production,
 		sourcemap: !production,
 		sourcesContent: false,
-		platform: 'browser',
-		outdir: 'dist/web',
 		outExtension: { '.js': '.cjs' },
 		external: ['vscode'],
 		logLevel: 'silent',
+	};
+	// The extension and its browser tests run in a web worker.
+	const web = await esbuild.context({
+		...shared,
+		entryPoints: [
+			'src/web/extension.ts',
+			'src/web/test/suite/extensionTests.ts'
+		],
+		platform: 'browser',
+		outdir: 'dist/web',
 		// Node.js global to browser globalThis
 		define: {
 			global: 'globalThis',
 		},
-
 		plugins: [
 			NodeGlobalsPolyfillPlugin({
 				process: true,
@@ -90,11 +93,29 @@ async function main() {
 			esbuildProblemMatcherPlugin, /* add to the end of plugins array */
 		],
 	});
+	// `src/node/test` runs in the Node extension host. See the "Extension Tests (Node)" launch config.
+	// `extensionTests.ts` is virtual: the plugin exports `run` and imports every `*.test.ts` next to it.
+	const nodeTests = await esbuild.context({
+		...shared,
+		entryPoints: {
+			// Loaded by the Node extension host (`main` in package.json); `activate` registers the provider.
+			extension: 'src/web/extension.ts',
+			'test/extensionTests': 'src/node/test/extensionTests.ts',
+		},
+		platform: 'node',
+		outdir: 'dist/node',
+		plugins: [
+			testBundlePlugin,
+			esbuildProblemMatcherPlugin,
+		],
+	});
 	if (watch) {
-		await ctx.watch();
+		await Promise.all([web.watch(), nodeTests.watch()]);
 	} else {
-		await ctx.rebuild();
-		await ctx.dispose();
+		await web.rebuild();
+		await nodeTests.rebuild();
+		await web.dispose();
+		await nodeTests.dispose();
 	}
 }
 

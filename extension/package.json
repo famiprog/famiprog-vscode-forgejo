@@ -11,6 +11,7 @@
   "activationEvents": [
     "onFileSystem:forgejo"
   ],
+  "main": "./dist/node/extension.cjs",
   "browser": "./dist/web/extension.cjs",
   "contributes": {
     "commands": [
@@ -21,8 +22,10 @@
     ]
   },
   "scripts": {
+    "compile-test": "yarn compile-web && yarn test",
     "test": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/extensionTests.cjs",
-    "pretest": "yarn run compile-web",
+    "compile-test-node": "yarn compile-web && yarn test-node",
+    "test-node": "node scripts/run-node-tests.mjs",
     "vscode:prepublish": "yarn run package-web",
     "compile-web": "yarn run check-types && yarn run lint && node esbuild.js",
     "watch-web": "npm-run-all -p watch-web:*",
@@ -38,11 +41,16 @@
   "devDependencies": {
     "@types/vscode": "^1.140.0",
     "@types/mocha": "^10.0.10",
+    "@types/node": "^26.6.5",
     "@types/assert": "^1.5.11",
+    "@pollyjs/core": "^6.0.6",
+    "@pollyjs/adapter-fetch": "^6.0.7",
+    "@pollyjs/persister-fs": "^6.0.6",
     "eslint": "^10.5.0",
     "typescript-eslint": "^8.61.1",
     "mocha": "^11.7.6",
     "typescript": "^6.0.3",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/test-web": "^0.0.81",
     "esbuild": "^0.28.1",
     "glob": "^13.0.6",
@@ -53,5 +61,8 @@
   "overrides": {
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6"
+  },
+  "dependencies": {
+    "@zenfs/core": "^2.7.7"
   }
 }

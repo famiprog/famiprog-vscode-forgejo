@@ -1,14 +1,16 @@
 {
     "compilerOptions": {
-        "module": "Node16",
+        // Polly's `export default class` types are not seen as classes under Node16.
+        "module": "ESNext",
         "target": "ES2020",
         "outDir": "dist",
         "lib": [
-            "ES2020",
+            "ESNext",
             "WebWorker"
         ],
         "types": [
-            "mocha"
+            "mocha",
+            "node"
         ],
         "sourceMap": true,
         "rootDir": "src",

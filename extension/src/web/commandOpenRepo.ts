@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { SCHEME } from './forgejoFileSystemProviderPrototype.js';
+import { SCHEME } from './ForgejoFileSystemProvider.js';
 
 export function register() {
     return vscode.commands.registerCommand('famiprog-vscode-forgejo.openRepo', command);

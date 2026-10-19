@@ -11,5 +11,5 @@ suite("commandOpenRepo", () => {
      */
     // @Scenario
     test("command", () => {
-    })
-})
+    });
+});

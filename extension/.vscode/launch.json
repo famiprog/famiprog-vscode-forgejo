@@ -33,6 +33,20 @@
 				"${workspaceFolder}/dist/web/**/*.cjs"
 			],
 			"preLaunchTask": "${defaultBuildTask}"
+		},
+		{
+			"name": "Extension Tests (Node)",
+			"type": "extensionHost",
+			"request": "launch",
+			"cwd": "${workspaceFolder}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionTestsPath=${workspaceFolder}/dist/node/test/extensionTests.cjs"
+			],
+			"outFiles": [
+				"${workspaceFolder}/dist/node/test/**/*.cjs"
+			],
+			"preLaunchTask": "${defaultBuildTask}"
 		}
 	]
 }
