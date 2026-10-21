@@ -21,7 +21,7 @@ export function toWin(p) {
  * This script helps to realize this, but w/ relative dir.
  */
 export async function run() {
-  await $({ cwd: "/mnt/c" })`cmd.exe /s /c ${`code --extensionDevelopmentPath=${toWin(".")} --folder-uri=forgejo://localhost:3001/forgejo/hello-world`}`;
+  await $({ cwd: "/mnt/c" })`cmd.exe /s /c ${`code --extensionDevelopmentPath=${toWin(".")} "--folder-uri=forgejo://http/localhost:3001/forgejo/hello-world/|"`}`;
 }
 
 export async function install() {

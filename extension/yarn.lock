@@ -552,6 +552,11 @@
     memium "^1.0.0"
     utilium "^3.7.0"
 
+"@zenfs/dom@^1.2.14":
+  version "1.2.14"
+  resolved "https://registry.yarnpkg.com/@zenfs/dom/-/dom-1.2.14.tgz#620fbb8fa8f21b6b0ea3e07a140d3a44c07c2c7e"
+  integrity sha512-Uc6pUuE/kAc9X3VCgRHmEpusBludbllU4BA/yKED3OwtZzyx8kDPU1QqnJBREB+dfgT1TfIXvxf4pA16WotB5w==
+
 "@zenfs/streams@^1.0.0":
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/@zenfs/streams/-/streams-1.0.1.tgz#e30953de441715e7a0f8393118e3aece2efd3b88"

@@ -19,6 +19,38 @@
         "command": "famiprog-vscode-forgejo.openRepo",
         "title": "Forgejo: Open repo"
       }
+    ],
+    "colors": [
+      {
+        "id": "forgejo.addedResourceForeground",
+        "description": "Color for added resources.",
+        "defaults": {
+          "light": "#587c0c",
+          "dark": "#81b88b",
+          "highContrast": "#a1e3ad",
+          "highContrastLight": "#374e06"
+        }
+      },
+      {
+        "id": "forgejo.modifiedResourceForeground",
+        "description": "Color for modified resources.",
+        "defaults": {
+          "light": "#895503",
+          "dark": "#E2C08D",
+          "highContrast": "#E2C08D",
+          "highContrastLight": "#895503"
+        }
+      },
+      {
+        "id": "forgejo.deletedResourceForeground",
+        "description": "Color for deleted resources.",
+        "defaults": {
+          "light": "#ad0707",
+          "dark": "#c74e39",
+          "highContrast": "#c74e39",
+          "highContrastLight": "#ad0707"
+        }
+      }
     ]
   },
   "scripts": {
@@ -34,35 +66,36 @@
     "package-web": "yarn run check-types && yarn run lint && node esbuild.js --production",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --folder-uri=forgejo://localhost:3001/forgejo/hello-world",
+    "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --folder-uri='forgejo://http/localhost:3001/forgejo/hello-world/|'",
     "run-vscode-win": "zx --eval 'import { run } from \"./scripts/run-vscode-win.js\"; await run();'",
     "vsix-install": "zx --eval 'import { install } from \"./scripts/run-vscode-win.js\"; await install();'"
   },
   "devDependencies": {
-    "@types/vscode": "^1.140.0",
+    "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
+    "@pollyjs/adapter-fetch": "^6.0.7",
+    "@pollyjs/core": "^6.0.6",
+    "@pollyjs/persister-fs": "^6.0.6",
+    "@types/assert": "^1.5.11",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.6.5",
-    "@types/assert": "^1.5.11",
-    "@pollyjs/core": "^6.0.6",
-    "@pollyjs/adapter-fetch": "^6.0.7",
-    "@pollyjs/persister-fs": "^6.0.6",
-    "eslint": "^10.5.0",
-    "typescript-eslint": "^8.61.1",
-    "mocha": "^11.7.6",
-    "typescript": "^6.0.3",
+    "@types/vscode": "^1.140.0",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/test-web": "^0.0.81",
+    "assert": "^2.1.0",
     "esbuild": "^0.28.1",
+    "eslint": "^10.5.0",
     "glob": "^13.0.6",
+    "mocha": "^11.7.6",
     "npm-run-all": "^4.1.5",
-    "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
-    "assert": "^2.1.0"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1"
   },
   "overrides": {
     "diff": "^8.0.4",
     "serialize-javascript": "^7.0.6"
   },
   "dependencies": {
-    "@zenfs/core": "^2.7.7"
+    "@zenfs/core": "^2.7.7",
+    "@zenfs/dom": "^1.2.14"
   }
 }

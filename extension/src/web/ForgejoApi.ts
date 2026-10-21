@@ -32,16 +32,22 @@ const TREE_PAGE_SIZE = 1000;
 
 export class ForgejoApi {
 
+    protected ref: Promise<string>;
+
     /**
      * @param origin e.g. `http://localhost:3001`
+     * @param owner e.g. `forgejo`
+     * @param repoName e.g. `hello-world`
+     * @param ref e.g. `main`, `myBranch`, a commit id. If not specified, the default branch is retrieved.
      */
-    constructor(readonly origin: string) {
+    constructor(readonly origin: string, readonly owner: string, readonly repoName: string, ref: string | undefined) {
+        this.ref = ref ? Promise.resolve(ref) : this.getDefaultBranch();
     }
 
-    async getDefaultBranch(owner: string, repo: string): Promise<string> {
-        const data = await this.getJson<{ default_branch?: string }>(this.repoUrl(owner, repo));
+    async getDefaultBranch(): Promise<string> {
+        const data = await this.getJson<{ default_branch?: string }>(this.repoUrl());
         if (!data.default_branch) {
-            throw new Error(`No default branch for ${owner}/${repo}`);
+            throw new Error(`No default branch for ${this.owner}/${this.repoName}`);
         }
         return data.default_branch;
     }
@@ -51,10 +57,10 @@ export class ForgejoApi {
      *
      * `ref` is passed in place of the tree `sha`; Forgejo accepts branch names, tags and commit ids for it.
      */
-    async getTree(owner: string, repo: string, ref: string): Promise<ForgejoTree> {
+    async getTree(): Promise<ForgejoTree> {
         const entries: ForgejoTreeEntry[] = [];
         for (let page = 1; ; page++) {
-            const url = new URL(`${this.repoUrl(owner, repo)}/git/trees/${encodeURIComponent(ref)}`);
+            const url = new URL(`${this.repoUrl()}/git/trees/${encodeURIComponent(await this.ref)}`);
             url.searchParams.set('recursive', 'true');
             url.searchParams.set('per_page', String(TREE_PAGE_SIZE));
             url.searchParams.set('page', String(page));
@@ -64,7 +70,7 @@ export class ForgejoApi {
                 break;
             }
         }
-        return { ref, entries };
+        return { ref: await this.ref, entries };
     }
 
     /** 
@@ -81,17 +87,17 @@ export class ForgejoApi {
      * Forgejo still has no raw mode on the sha URL. That request is https://codeberg.org/forgejo/forgejo/issues/5071. 
      * GitHub serves the raw blob when you send Accept: application/vnd.github.raw.
      */
-    async getBlob(owner: string, repo: string, sha: string): Promise<Uint8Array> {
+    async getBlob(sha: string): Promise<Uint8Array> {
         const data = await this.getJson<{ content?: string; encoding?: string }>(
-            `${this.repoUrl(owner, repo)}/git/blobs/${encodeURIComponent(sha)}`);
+            `${this.repoUrl()}/git/blobs/${encodeURIComponent(sha)}`);
         if (data.encoding !== 'base64' || typeof data.content !== 'string') {
             throw new Error(`Unexpected blob encoding "${data.encoding}" for ${sha}`);
         }
         return decodeBase64(data.content);
     }
 
-    private repoUrl(owner: string, repo: string): string {
-        return `${this.origin}/api/v1/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+    private repoUrl(): string {
+        return `${this.origin}/api/v1/repos/${encodeURIComponent(this.owner)}/${encodeURIComponent(this.repoName)}`;
     }
 
     private async getJson<T>(url: string | URL): Promise<T> {

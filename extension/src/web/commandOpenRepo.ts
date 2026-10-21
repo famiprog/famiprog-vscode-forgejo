@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { SCHEME } from './ForgejoFileSystemProvider.js';
+import { RepoUri } from './RepoUri';
 
 export function register() {
     return vscode.commands.registerCommand('famiprog-vscode-forgejo.openRepo', command);
@@ -9,7 +9,7 @@ async function command(): Promise<vscode.Uri | undefined> {
     const input = await vscode.window.showInputBox({
         title: 'Forgejo repository',
         prompt: 'URL of a Forgejo repository',
-        placeHolder: 'http://<server>/<owner>/<repo>',
+        placeHolder: 'http(s)://<server>/<owner>/<repo>(@ref)',
         ignoreFocusOut: true,
     });
     if (!input?.trim()) {
@@ -18,7 +18,7 @@ async function command(): Promise<vscode.Uri | undefined> {
 
     let uri: vscode.Uri;
     try {
-        uri = toForgejoUri(input);
+        uri = RepoUri.fromRepoUrl(input);
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         await vscode.window.showErrorMessage(message);
@@ -35,25 +35,15 @@ async function command(): Promise<vscode.Uri | undefined> {
     return uri;
 }
 
-function toForgejoUri(input: string): vscode.Uri {
-    input = input.trim();
-    if (input.endsWith('.git')) {
-        input = input.slice(0, -'.git'.length);
-    }
-    if (input.startsWith("https://")) {
-        input = input.replace("https://", SCHEME + "://");
-    } else if (input.startsWith("http://")) {
-        input = input.replace("http://", SCHEME + "://");
-    } else {
-        throw new Error(`Invalid Forgejo repository URL: ${input}`);
-    }
-    return vscode.Uri.parse(input);
-}
-
-function folderName(uri: vscode.Uri): string {
-    const segments = uri.path.split('/');
-    if (segments.length < 3) {
+/**
+ * @see commandOpenRepo.test.ts for examples
+ */
+export function folderName(uri: vscode.Uri): string {
+    const segments = uri.path.split("/").filter(Boolean);
+    const marker = segments.indexOf(RepoUri.SEPARATOR);
+    const before = marker === -1 ? segments : segments.slice(0, marker);
+    if (before.length < 3) {
         throw new Error("Expected at least 3 path segments");
     }
-    return `${segments[segments.length - 2]}/${segments[segments.length - 1]}`;
+    return `${before[before.length - 2]}/${before[before.length - 1]}`;
 }

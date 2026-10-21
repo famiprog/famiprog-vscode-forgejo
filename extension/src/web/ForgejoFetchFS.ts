@@ -1,6 +1,6 @@
 import { FetchFS, Index, Inode, InodeLike } from '@zenfs/core';
 import { withErrno } from 'kerium';
-import type { ForgejoTreeEntry } from './ForgejoApi.js';
+import type { ForgejoApi, ForgejoTreeEntry } from './ForgejoApi.js';
 
 const S_IFREG = 0o100000;
 const S_IFDIR = 0o040000;
@@ -12,19 +12,20 @@ const S_IFLNK = 0o120000;
  *
  * It is the "readable" layer of a `CopyOnWrite` file system, so it is never written to.
  */
-export class ForgejoReadableFS extends FetchFS {
+export class ForgejoFetchFS extends FetchFS {
 
     private readonly blobs = new Map<string, Promise<Uint8Array>>();
 
     constructor(
+        protected api: ForgejoApi,
         /** path (with leading slash) -> blob sha */
         private readonly shas: ReadonlyMap<string, string>,
         index: Index,
-        private readonly loadBlob: (sha: string) => Promise<Uint8Array>) {
+    ) {
         super(index, 'http://unused.invalid');
     }
 
-    static fromTree(entries: readonly ForgejoTreeEntry[], loadBlob: (sha: string) => Promise<Uint8Array>): ForgejoReadableFS {
+    static async create(api: ForgejoApi): Promise<ForgejoFetchFS> {
         const now = Date.now();
         const inodes: Record<string, InodeLike> = {};
         const shas = new Map<string, string>();
@@ -38,7 +39,10 @@ export class ForgejoReadableFS extends FetchFS {
         };
 
         add('/', S_IFDIR | 0o555, 0);
-        for (const { path, type, mode, size, sha } of entries) {
+
+        const tree = await api.getTree();
+
+        for (const { path, type, mode, size, sha } of tree.entries) {
             if (type === 'blob') {
                 const isSymlink = (parseInt(mode, 8) & 0o170000) === S_IFLNK;
                 add('/' + path, (isSymlink ? S_IFLNK : S_IFREG) | (parseInt(mode, 8) & 0o555), size);
@@ -48,7 +52,7 @@ export class ForgejoReadableFS extends FetchFS {
                 add('/' + path, S_IFDIR | 0o555, 0);
             }
         }
-        return new ForgejoReadableFS(shas, new Index().fromJSON({ version: 1, entries: inodes }), loadBlob);
+        return new ForgejoFetchFS(api, shas, new Index().fromJSON({ version: 1, entries: inodes }));
     }
 
     override async read(path: string, buffer: Uint8Array, start = 0, end: number): Promise<void> {
@@ -61,7 +65,7 @@ export class ForgejoReadableFS extends FetchFS {
         }
         let blob = this.blobs.get(sha);
         if (!blob) {
-            blob = this.loadBlob(sha);
+            blob = this.api.getBlob(sha);
             this.blobs.set(sha, blob);
             blob.catch(() => this.blobs.delete(sha)); // retry on next read
         }
