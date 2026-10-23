@@ -1,6 +1,6 @@
 import { FetchFS, Index, Inode, InodeLike } from '@zenfs/core';
 import { withErrno } from 'kerium';
-import type { ForgejoApi, ForgejoTreeEntry } from './ForgejoApi.js';
+import type { ForgejoApi } from './ForgejoApi.js';
 
 const S_IFREG = 0o100000;
 const S_IFDIR = 0o040000;
@@ -40,13 +40,19 @@ export class ForgejoFetchFS extends FetchFS {
 
         add('/', S_IFDIR | 0o555, 0);
 
-        const tree = await api.getTree();
+        const entries = await api.getTree();
 
-        for (const { path, type, mode, size, sha } of tree.entries) {
+        for (const { path, type, mode, size, sha } of entries) {
+            if (!path) {
+                continue;
+            }
             if (type === 'blob') {
-                const isSymlink = (parseInt(mode, 8) & 0o170000) === S_IFLNK;
-                add('/' + path, (isSymlink ? S_IFLNK : S_IFREG) | (parseInt(mode, 8) & 0o555), size);
-                shas.set('/' + path, sha);
+                const parsedMode = parseInt(mode ?? '0', 8);
+                const isSymlink = (parsedMode & 0o170000) === S_IFLNK;
+                add('/' + path, (isSymlink ? S_IFLNK : S_IFREG) | (parsedMode & 0o555), size ?? 0);
+                if (sha) {
+                    shas.set('/' + path, sha);
+                }
             } else {
                 // directories; also submodules, which are shown as empty directories
                 add('/' + path, S_IFDIR | 0o555, 0);

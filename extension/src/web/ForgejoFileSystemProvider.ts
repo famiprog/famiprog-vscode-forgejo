@@ -1,8 +1,8 @@
 import fs, { type FileSystem, isDirectory, isSymbolicLink } from '@zenfs/core';
+import { isAxiosError } from 'axios';
 import * as vscode from 'vscode';
 import { isOriginalLayer, Repo, RepoStore } from './Repo';
 import { RepoUri } from './RepoUri';
-import { ForgejoApiError } from './ForgejoApi';
 
 /**
  * File system provider for the repos of a Forgejo server.
@@ -23,6 +23,11 @@ export class ForgejoFileSystemProvider implements vscode.FileSystemProvider {
 
     private readonly onDidChangeFileEmitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
     readonly onDidChangeFile = this.onDidChangeFileEmitter.event;
+
+    /** Asks the explorer to read the repo root again, after a token change reloads the tree. */
+    notifyRootChanged(uri: vscode.Uri) {
+        this.onDidChangeFileEmitter.fire([{ type: vscode.FileChangeType.Changed, uri }]);
+    }
 
     repoStore: RepoStore = {};
 
@@ -56,13 +61,11 @@ export class ForgejoFileSystemProvider implements vscode.FileSystemProvider {
             // in theory shouldn't happen; if editors => repo exists
             return;
         }
+        // Drop a failed connect too, so adding the folder again can try.
+        delete this.repoStore[repoUriStr];
         const pending = repoOrPromise instanceof Repo ? Promise.resolve(repoOrPromise) : repoOrPromise;
         const repo = await pending.catch(() => undefined);
-        if (!repo) {
-            return;
-        }
-        delete this.repoStore[repoUriStr];
-        repo.dispose();
+        repo?.dispose();
     }
 
     /** `true` when every editor of the repo closed. `false` when a dirty editor's save dialog was cancelled. */
@@ -225,7 +228,7 @@ export class ForgejoFileSystemProvider implements vscode.FileSystemProvider {
             const pending = connecting instanceof Repo ? Promise.resolve(connecting) : connecting;
             pending.then(repo => {
                 repo.dispose();
-            });
+            }, () => undefined);
         }
         this.repoStore = {};
         this.onDidChangeFileEmitter.dispose();
@@ -305,8 +308,8 @@ function toFileSystemError(error: unknown, uri: vscode.Uri): Error {
     if (error instanceof vscode.FileSystemError) {
         return error;
     }
-    if (error instanceof ForgejoApiError) {
-        return error.status === 404
+    if (isAxiosError(error) && error.response) {
+        return error.response.status === 404
             ? vscode.FileSystemError.FileNotFound(uri)
             : vscode.FileSystemError.Unavailable(error.message);
     }

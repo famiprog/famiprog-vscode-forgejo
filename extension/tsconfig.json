@@ -20,5 +20,9 @@
         // "noImplicitReturns": true, /* Report error when not all code paths in function return a value. */
         // "noFallthroughCasesInSwitch": true, /* Report errors for fallthrough cases in switch statement. */
         // "noUnusedParameters": true,  /* Report errors on unused parameters. */
-    }
+    },
+    // The exclude entry only keeps the page script out of the worker typecheck. It does not stop one folder from importing the other.
+    "exclude": [
+        "src/web-index-html"
+    ]
 }

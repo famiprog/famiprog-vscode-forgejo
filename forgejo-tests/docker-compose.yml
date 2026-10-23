@@ -1,5 +1,9 @@
 # https://forgejo.org/docs/latest/admin/installation/docker/
 # user/pass: forgejo / forgejoforgejo
+# access token: api-script, 4262ed1fbd05d1b805678b8e594a9b6254446b64
+# oauth2 client id/secret 
+# * VS Code Web 3001 - 7e30a448-2d95-469a-87e4-27e44ad1310e gto_z26nt32bojvy3ciz626uvhzideotpwgtxfaclufo5fl3o4cuxfeq
+# * VS Code Web 3002 - 5a2bb4b6-f1ea-4b9b-9f23-0737e86b25c9 gto_amz5d2cezm5c3p2yyzu5q5tdokgq3r2rsxoaeuxcbxug3jlbetia
 name: forgejo
 
 networks:
@@ -18,6 +22,11 @@ services:
       - forgejo
     volumes:
       - ./volume-data:/data
+      # http://localhost:3001/assets/vscode-web/index.html
+      - ../vscode-web/node_modules/@github1s/vscode-web:/data/gitea/public/assets/vscode-web:ro
+      - ./index.html:/data/gitea/public/assets/vscode-web/index.html:ro
+      # http://localhost:3001/assets/famiprog-vscode-forgejo/
+      - ../extension:/data/gitea/public/assets/famiprog-vscode-forgejo:ro
       - /etc/localtime:/etc/localtime:ro
     ports:
       - "3001:3000"

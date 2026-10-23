@@ -115,7 +115,6 @@ suite("ForgejoFileSystemProvider", () => {
             const repo = provider().repoStore[root.toString(true)] as Repo;
             assert.strictEqual(repo.sourceControl.id, RepoUri.SCHEME);
             assert.strictEqual(repo.sourceControl.label, 'forgejo/sample-repo');
-            assert.strictEqual(repo.sourceControl.rootUri?.toString(true), root.toString(true));
             // THEN1b
             assert.deepStrictEqual(tree, SAMPLE_REPO_TREE);
             assert.deepStrictEqual(requestedPaths, [

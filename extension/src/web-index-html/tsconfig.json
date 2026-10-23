@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "target": "ES2020",
+        // notice here we have "DOM"; ../tsconfig.json has "WebWorker". We need 2 separate files. Not OK to combine
+        // because both declare some overlapping globals
+        "lib": ["ESNext", "DOM"],
+        "strict": true,
+        "noEmit": true,
+        "skipLibCheck": true
+    },
+    "include": ["index.ts"]
+}

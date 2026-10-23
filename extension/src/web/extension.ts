@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as commandOpenRepo from "./commandOpenRepo.js";
+import * as commandSetAccessToken from "./commandSetAccessToken.js";
 import { ForgejoFileDecorationProvider } from './ForgejoFileDecorationProvider.js';
 import { ForgejoFileSystemProvider } from './ForgejoFileSystemProvider.js';
 
@@ -11,7 +12,8 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		provider.register(),
 		decorations.register(),
-		commandOpenRepo.register()
+		commandOpenRepo.register(),
+		commandSetAccessToken.register(provider)
 	);
 }
 

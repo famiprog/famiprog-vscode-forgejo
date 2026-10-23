@@ -109,13 +109,28 @@ async function main() {
 			esbuildProblemMatcherPlugin,
 		],
 	});
+	// Page script imported by forgejo-tests/index.html and vscode-web/index.html. ESM so the page can import it.
+	const webIndexHtml = await esbuild.context({
+		bundle: true,
+		format: 'esm',
+		platform: 'browser',
+		minify: production,
+		sourcemap: !production,
+		sourcesContent: false,
+		entryPoints: ['src/web-index-html/index.ts'],
+		outdir: 'dist/web-index-html',
+		logLevel: 'silent',
+		plugins: [esbuildProblemMatcherPlugin],
+	});
 	if (watch) {
-		await Promise.all([web.watch(), nodeTests.watch()]);
+		await Promise.all([web.watch(), nodeTests.watch(), webIndexHtml.watch()]);
 	} else {
 		await web.rebuild();
 		await nodeTests.rebuild();
+		await webIndexHtml.rebuild();
 		await web.dispose();
 		await nodeTests.dispose();
+		await webIndexHtml.dispose();
 	}
 }
 

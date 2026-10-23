@@ -12,6 +12,7 @@ async function command(): Promise<vscode.Uri | undefined> {
         placeHolder: 'http(s)://<server>/<owner>/<repo>(@ref)',
         ignoreFocusOut: true,
     });
+
     if (!input?.trim()) {
         return;
     }

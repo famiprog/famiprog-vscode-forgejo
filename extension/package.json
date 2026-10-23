@@ -1,9 +1,10 @@
 {
   "name": "famiprog-vscode-forgejo",
+  "publisher": "famiprog",
   "version": "0.0.1",
   "type": "module",
   "engines": {
-    "vscode": "^1.140.0"
+    "vscode": "^1.120.0"
   },
   "categories": [
     "Other"
@@ -18,8 +19,23 @@
       {
         "command": "famiprog-vscode-forgejo.openRepo",
         "title": "Forgejo: Open repo"
+      },
+      {
+        "command": "famiprog-vscode-forgejo.setAccessToken",
+        "title": "Set access token",
+        "category": "Forgejo",
+        "icon": "$(key)"
       }
     ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "famiprog-vscode-forgejo.setAccessToken",
+          "when": "scmProvider == forgejo",
+          "group": "navigation"
+        }
+      ]
+    },
     "colors": [
       {
         "id": "forgejo.addedResourceForeground",
@@ -64,7 +80,7 @@
     "watch-web:esbuild": "node esbuild.js --watch",
     "watch-web:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package-web": "yarn run check-types && yarn run lint && node esbuild.js --production",
-    "check-types": "tsc --noEmit",
+    "check-types": "tsc --noEmit && tsc --noEmit --project src/web-index-html/tsconfig.json",
     "lint": "eslint src",
     "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --folder-uri='forgejo://http/localhost:3001/forgejo/hello-world/|'",
     "run-vscode-win": "zx --eval 'import { run } from \"./scripts/run-vscode-win.js\"; await run();'",
@@ -95,6 +111,7 @@
     "serialize-javascript": "^7.0.6"
   },
   "dependencies": {
+    "@llamaduck/forgejo-ts": "^15.0.10",
     "@zenfs/core": "^2.7.7",
     "@zenfs/dom": "^1.2.14"
   }

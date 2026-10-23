@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport"
+		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+	<title>VSCode Web</title>
+	<link rel="stylesheet" href="/assets/vscode-web/vscode/vs/workbench/workbench.web.main.internal.css" />
+</head>
+
+<body>
+	<script src="/assets/vscode-web/vscode/nls.messages.js"></script>
+	<script type="module">
+		import { boot } from '/assets/famiprog-vscode-forgejo/dist/web-index-html/index.js';
+
+		await boot({
+			clientId: '7e30a448-2d95-469a-87e4-27e44ad1310e',
+			redirectPath: '/assets/vscode-web/index.html',
+			forgejoOrigin: location.origin,
+			vscodeFileRoot: '/assets/vscode-web/vscode/',
+			// Relative to <vscodeRoot>../extensions. A leading "/" is not absolute.
+			extensionPath: '../../famiprog-vscode-forgejo',
+			extensionPackageJsonUrl: '/assets/famiprog-vscode-forgejo/package.json',
+		}, async ({ URI }) => {
+			return {
+				workspaceProvider: {
+					workspace: { workspaceUri: URI.from({ scheme: 'tmp', path: '/default.code-workspace' }) },
+					// trusted: true,
+					// workspace: { folderUri: URI.parse(`forgejo://${location.protocol.slice(0, -1)}/${location.host}/forgejo/sample-repo/|`) },
+					// open: () => Promise.resolve(false),
+				}
+			}
+		});
+	</script>
+</body>
+
+</html>

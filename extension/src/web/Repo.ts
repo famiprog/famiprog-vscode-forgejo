@@ -1,5 +1,6 @@
 import fs, { CopyOnWrite, CopyOnWriteFS, FileSystem, InMemory, resolveMountConfig } from "@zenfs/core";
 import { IndexedDB } from "@zenfs/dom";
+import { isAxiosError } from 'axios';
 import * as vscode from 'vscode';
 import { ForgejoApi } from "./ForgejoApi";
 import { ForgejoFetchFS } from "./ForgejoFetchFS";
@@ -27,6 +28,9 @@ export class Repo {
      */
     fileSystem!: CopyOnWriteFS;
 
+    /** `true` after `refresh` has mounted `fileSystem`. */
+    private mounted = false;
+
     public static getOrCreate(repoStore: RepoStore, fileUri: vscode.Uri) {
         const [repoUriStr] = RepoUri.fileUriToRepoUriStrAndPath(fileUri);
         let repo = repoStore[repoUriStr];
@@ -34,12 +38,6 @@ export class Repo {
             const pending = this.create(repoUriStr).then(created => {
                 repoStore[repoUriStr] = created;
                 return created;
-            });
-            // A failed connect must not stick, so the next access can try again.
-            void pending.catch(() => {
-                if (repoStore[repoUriStr] === pending) {
-                    delete repoStore[repoUriStr];
-                }
             });
             repo = repoStore[repoUriStr] = pending;
         }
@@ -52,19 +50,14 @@ export class Repo {
         const repoLocation = RepoUri.toRepoLocation(repoUri);
         {
             // API
-            repo.api = new ForgejoApi(repoLocation.origin, repoLocation.owner, repoLocation.repoName, repoLocation.ref);
+            repo.api = await ForgejoApi.create(repoLocation.origin, repoLocation.owner, repoLocation.repoName, repoLocation.ref);
         }
 
         {
-            // zen fs
-            repo.mountPoint = RepoUri.mountPoint(repoUriStr);
-            await repo.openFileSystem(await ForgejoFetchFS.create(repo.api), repoUriStr);
-            fs.mount(repo.mountPoint, repo.fileSystem);
-        }
-
-        {
-            // source control
-            const sourceControl = repo.sourceControl = vscode.scm.createSourceControl(RepoUri.SCHEME, repoLocation.owner + "/" + repoLocation.repoName, repoUri);
+            // The label is the repository name. Omit the root URI: VS Code would otherwise name
+            // this after the workspace folder, or `|` (the URI's last segment) when that folder
+            // is not registered yet, which is what a failed load is.
+            const sourceControl = repo.sourceControl = vscode.scm.createSourceControl(RepoUri.SCHEME, repoLocation.owner + "/" + repoLocation.repoName);
             const sourceControlChanges = repo.sourceControlChangesUi = sourceControl.createResourceGroup('changes', 'Changes');
             sourceControlChanges.hideWhenEmpty = false;
             // Commit is not implemented yet. The list is the staging area; the message box would imply otherwise.
@@ -77,14 +70,43 @@ export class Repo {
                     return withOriginalLayer(uri);
                 },
             };
-            void repo.refreshSourceControl();
+        }
+
+        {
+            // zen fs
+            repo.mountPoint = RepoUri.mountPoint(repoUriStr);
+            try {
+                await repo.refresh();
+            } catch (error) {
+                repo.reportConnectFailure(error);
+            }
         }
 
         return repo;
     }
 
+    /** Loads the tree with the current token and mounts it. Local edits stay in the writable layer. */
+    async refresh() {
+        const readable = await ForgejoFetchFS.create(this.api);
+        if (this.mounted) {
+            fs.umount(this.mountPoint);
+            this.mounted = false;
+        }
+        await this.openFileSystem(readable, this.repoUri.toString(true));
+        fs.mount(this.mountPoint, this.fileSystem);
+        this.mounted = true;
+        await this.refreshSourceControl();
+    }
+
+    async setAccessToken(accessToken: string) {
+        await this.api.setAccessToken(accessToken);
+    }
+
     dispose() {
-        fs.umount(this.mountPoint);
+        if (this.mounted) {
+            fs.umount(this.mountPoint);
+            this.mounted = false;
+        }
         if (this.refreshSourceControlDebouncedTimer !== undefined) {
             clearTimeout(this.refreshSourceControlDebouncedTimer);
             this.refreshSourceControlDebouncedTimer = undefined;
@@ -157,6 +179,46 @@ export class Repo {
         }, 200);
     }
 
+    reportConnectFailure(error: unknown) {
+        const message = connectFailureMessage(this.repoUri.toString(true), error);
+        console.error(message, error);
+        void vscode.window.showErrorMessage(message);
+    }
+
+}
+
+function connectFailureMessage(repoUriStr: string, error: unknown): string {
+    const label = repoLabel(repoUriStr);
+    if (isAxiosError(error) && error.response) {
+        const status = error.response.status;
+        // Forgejo answers 404 for a missing repo and for a private repo with no credentials.
+        if (status === 404) {
+            return `${label}: repository not found, or it is private (HTTP 404)`;
+        }
+        if (status === 401 || status === 403) {
+            return `${label}: not authorized (HTTP ${status})`;
+        }
+        const detail = apiMessage(error.response.data);
+        return `${label}: HTTP ${status}${detail ? ` ${detail}` : ''}`;
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    return `${label}: ${detail}`;
+}
+
+function repoLabel(repoUriStr: string): string {
+    try {
+        const { owner, repoName } = RepoUri.toRepoLocation(vscode.Uri.parse(repoUriStr));
+        return `${owner}/${repoName}`;
+    } catch {
+        return repoUriStr;
+    }
+}
+
+function apiMessage(data: unknown): string | undefined {
+    if (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string') {
+        return data.message;
+    }
+    return undefined;
 }
 
 function owns(repoUri: vscode.Uri, resource: vscode.Uri): boolean {
