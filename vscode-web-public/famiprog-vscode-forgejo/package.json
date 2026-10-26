@@ -1,0 +1,118 @@
+{
+  "name": "famiprog-vscode-forgejo",
+  "publisher": "famiprog",
+  "version": "0.0.1",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.120.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onFileSystem:forgejo"
+  ],
+  "main": "./dist/node/extension.cjs",
+  "browser": "./dist/web/extension.cjs",
+  "contributes": {
+    "commands": [
+      {
+        "command": "famiprog-vscode-forgejo.openRepo",
+        "title": "Forgejo: Open repo"
+      },
+      {
+        "command": "famiprog-vscode-forgejo.setAccessToken",
+        "title": "Set access token",
+        "category": "Forgejo",
+        "icon": "$(key)"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "famiprog-vscode-forgejo.setAccessToken",
+          "when": "scmProvider == forgejo",
+          "group": "navigation"
+        }
+      ]
+    },
+    "colors": [
+      {
+        "id": "forgejo.addedResourceForeground",
+        "description": "Color for added resources.",
+        "defaults": {
+          "light": "#587c0c",
+          "dark": "#81b88b",
+          "highContrast": "#a1e3ad",
+          "highContrastLight": "#374e06"
+        }
+      },
+      {
+        "id": "forgejo.modifiedResourceForeground",
+        "description": "Color for modified resources.",
+        "defaults": {
+          "light": "#895503",
+          "dark": "#E2C08D",
+          "highContrast": "#E2C08D",
+          "highContrastLight": "#895503"
+        }
+      },
+      {
+        "id": "forgejo.deletedResourceForeground",
+        "description": "Color for deleted resources.",
+        "defaults": {
+          "light": "#ad0707",
+          "dark": "#c74e39",
+          "highContrast": "#c74e39",
+          "highContrastLight": "#ad0707"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "compile-test": "yarn compile-web && yarn test",
+    "test": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/extensionTests.cjs",
+    "compile-test-node": "yarn compile-web && yarn test-node",
+    "test-node": "node scripts/run-node-tests.mjs",
+    "vscode:prepublish": "yarn run package-web",
+    "compile-web": "yarn run check-types && yarn run lint && node esbuild.js",
+    "watch-web": "npm-run-all -p watch-web:*",
+    "watch-web:esbuild": "node esbuild.js --watch",
+    "watch-web:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package-web": "yarn run check-types && yarn run lint && node esbuild.js --production",
+    "check-types": "tsc --noEmit && tsc --noEmit --project src/web-index-html/tsconfig.json",
+    "lint": "eslint src",
+    "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --folder-uri='forgejo://http/localhost:3001/forgejo/hello-world/|'",
+    "run-vscode-win": "zx --eval 'import { run } from \"./scripts/run-vscode-win.js\"; await run();'",
+    "vsix-install": "zx --eval 'import { install } from \"./scripts/run-vscode-win.js\"; await install();'"
+  },
+  "devDependencies": {
+    "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
+    "@pollyjs/adapter-fetch": "^6.0.7",
+    "@pollyjs/core": "^6.0.6",
+    "@pollyjs/persister-fs": "^6.0.6",
+    "@types/assert": "^1.5.11",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^26.6.5",
+    "@types/vscode": "^1.140.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/test-web": "^0.0.81",
+    "assert": "^2.1.0",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.5.0",
+    "glob": "^13.0.6",
+    "mocha": "^11.7.6",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1"
+  },
+  "overrides": {
+    "diff": "^8.0.4",
+    "serialize-javascript": "^7.0.6"
+  },
+  "dependencies": {
+    "@llamaduck/forgejo-ts": "^15.0.10",
+    "@zenfs/core": "^2.7.7",
+    "@zenfs/dom": "^1.2.14"
+  }
+}
