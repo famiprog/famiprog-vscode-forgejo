@@ -1,0 +1,25 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: forgejo-lab
+kubeAPI:
+  # Default bind is 0.0.0.0 and a random host port. This keeps the API on localhost:6550.
+  hostIP: "127.0.0.1"
+  hostPort: "6550"
+ports:
+  - port: 8080:80
+volumes:
+  # Left side is the host directory (docker-compose ./volume-data). Right side is the path inside the k3d node.
+  - volume: /home/poweruser/git/famiprog-vscode-forgejo/forgejo-tests/volume-data:/forgejo-data
+    nodeFilters:
+      - server:0
+options:
+  k3s:
+    extraArgs:
+      # Traefik is off because forgejo.yml uses nginx ingress annotations.
+      - arg: "--disable=traefik"
+        nodeFilters:
+          - server:*
+  kubeconfig:
+    # Default is to merge this cluster into ~/.kube/config and switch to it.
+    updateDefaultKubeconfig: false

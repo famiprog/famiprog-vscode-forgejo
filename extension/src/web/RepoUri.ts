@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { forgejoUriFromRepoUrl } from '../shared/forgejoUri.js';
 
 /**
  * We use | as separator to differentiate the repo part (before) and file part (after).
@@ -21,28 +22,7 @@ export class RepoUri {
      * @see RepoUri.test.ts
      */
     static fromRepoUrl(repoUrlStr: string): vscode.Uri {
-        repoUrlStr = repoUrlStr.trim();
-        if (repoUrlStr.endsWith('.git')) {
-            repoUrlStr = repoUrlStr.slice(0, -'.git'.length);
-        }
-        let url: URL;
-        try {
-            url = new URL(repoUrlStr);
-        } catch {
-            throw new Error(`Invalid Forgejo repository URL: ${repoUrlStr}`);
-        }
-        if (url.protocol !== "http:" && url.protocol !== "https:") {
-            throw new Error(`Invalid Forgejo repository URL: ${repoUrlStr}`);
-        }
-        const path = url.pathname.replace(/\/+$/, "");
-        if (path.split("/").filter(Boolean).length < 2) {
-            throw new Error(`Expected at least <owner>/<repo> in ${repoUrlStr}`);
-        }
-        return vscode.Uri.from({
-            scheme: this.SCHEME,
-            authority: url.protocol.slice(0, -1),
-            path: `/${url.host}${path}/${this.SEPARATOR}`,
-        });
+        return vscode.Uri.from(forgejoUriFromRepoUrl(repoUrlStr));
     }
 
     /**

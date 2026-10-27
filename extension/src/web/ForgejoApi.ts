@@ -50,13 +50,16 @@ export class ForgejoApi {
                 // desktop mode
                 return config;
             }
-            // we ask everytime; because maybe session is about to expire, so a refresh will be done
-            const token = await vscode.commands.executeCommand<string>(COMMAND_GET_ACCESS_TOKEN);
-            config.headers.set('Authorization', `token ${token}`);
+            // Ask every time. A host with sign-in refreshes the token when it is about to expire.
+            // A host without sign-in returns nothing, and a public repo is read with no Authorization header.
+            const token = await vscode.commands.executeCommand<string | undefined>(COMMAND_GET_ACCESS_TOKEN) || this.accessToken;
+            if (token) {
+                config.headers.set('Authorization', `token ${token}`);
+            }
 
             return config;
         });
-        
+
         this.http.interceptors.response.use(undefined, error => {
             if (isAxiosError(error) && error.response?.status === 401) {
                 void vscode.commands.executeCommand(COMMAND_REDIRECT_TO_LOGIN);

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport"
+		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+	<title>VSCode Web</title>
+	<link rel="stylesheet" href="./node_modules/@github1s/vscode-web/vscode/vs/workbench/workbench.web.main.internal.css" />
+</head>
+
+<body>
+	<script src="./node_modules/@github1s/vscode-web/vscode/nls.messages.js"></script>
+	<script type="module">
+		import { boot } from './famiprog-vscode-forgejo/dist/web-index-html/index.js';
+
+		const vscodeRoot = './node_modules/@github1s/vscode-web/vscode/';
+		await boot({
+			vscodeFileRoot: vscodeRoot,
+			// Relative to <vscodeRoot>../extensions. A leading "/" is not absolute.
+			extensionPath: '../../../../famiprog-vscode-forgejo',
+			extensionPackageJsonUrl: './famiprog-vscode-forgejo/package.json',
+		}, async () => {
+			// I don't know why, but if this import happens before
+			// globalThis._VSCODE_FILE_ROOT = ...
+			// => error "Cannot determine URI for module id!".
+			const { URI } = await import(vscodeRoot + 'vs/workbench/workbench.web.main.internal.js');
+
+			return {
+				workspaceProvider: {
+					workspace: { workspaceUri: URI.from({ scheme: 'tmp', path: '/default.code-workspace' }) },
+				}
+			}
+		});
+	</script>
+</body>
+
+</html>

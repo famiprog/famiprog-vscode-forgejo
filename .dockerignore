@@ -1,0 +1,8 @@
+.git
+forgejo-tests
+extension/node_modules
+extension/dist
+extension/.vscode-test
+extension/.vscode-test-web
+vscode-web/node_modules
+vscode-web-base/node_modules

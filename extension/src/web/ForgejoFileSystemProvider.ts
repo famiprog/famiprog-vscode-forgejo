@@ -43,7 +43,12 @@ export class ForgejoFileSystemProvider implements vscode.FileSystemProvider {
             vscode.workspace.onDidChangeWorkspaceFolders(async event => {
                 for (const folder of event.removed) {
                     if (folder.uri.scheme !== RepoUri.SCHEME) {
-                        return;
+                        continue;
+                    }
+                    // Renaming a folder removes it and adds the same URI. The repo stays open.
+                    const stillOpen = vscode.workspace.workspaceFolders?.some(open => open.uri.toString() === folder.uri.toString());
+                    if (stillOpen) {
+                        continue;
                     }
                     this.removeRepo(folder);
                 }

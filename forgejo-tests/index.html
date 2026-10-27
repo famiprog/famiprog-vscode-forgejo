@@ -22,7 +22,11 @@
 			// Relative to <vscodeRoot>../extensions. A leading "/" is not absolute.
 			extensionPath: '../../famiprog-vscode-forgejo',
 			extensionPackageJsonUrl: '/assets/famiprog-vscode-forgejo/package.json',
-		}, async ({ URI }) => {
+		}, async () => {
+			// Import after boot sets globalThis._VSCODE_FILE_ROOT. Importing earlier
+			// throws "Cannot determine URI for module id!".
+			const { URI } = await import('/assets/vscode-web/vscode/vs/workbench/workbench.web.main.internal.js');
+
 			return {
 				workspaceProvider: {
 					workspace: { workspaceUri: URI.from({ scheme: 'tmp', path: '/default.code-workspace' }) },

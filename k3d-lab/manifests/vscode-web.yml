@@ -1,0 +1,79 @@
+# Static vscode-web from vscode-web-docker. The image still serves files at /.
+# Ingress strips /vscode-web before proxying, so the browser URL is http://127.0.0.1:8080/vscode-web/.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vscode-web
+spec:
+  selector:
+    app: vscode-web
+  ports:
+  - port: 3002
+    protocol: TCP
+    name: http
+    targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vscode-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vscode-web
+  template:
+    metadata:
+      labels:
+        app: vscode-web
+    spec:
+      containers:
+      - name: vscode-web
+        image: vscode-web:latest
+        imagePullPolicy: Never
+        ports:
+        - name: http
+          containerPort: 3002
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vscode-web-slash
+  annotations:
+    nginx.ingress.kubernetes.io/permanent-redirect: http://127.0.0.1:8080/vscode-web/
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /vscode-web
+        pathType: Exact
+        backend:
+          service:
+            name: vscode-web
+            port:
+              number: 3002
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vscode-web
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /vscode-web/(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: vscode-web
+            port:
+              number: 3002

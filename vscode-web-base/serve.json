@@ -1,0 +1,10 @@
+{
+  "cleanUrls": false,
+  "rewrites": [
+    {
+      "_comment": "cleanUrls defaults to true. serve then 301s any path ending in .html and builds the Location from the path only, so webWorkerExtensionHostIframe.html?vscodeWebWorkerExtHostId=... loses the id. The iframe never connects and Forgejo: Open repo stays on Activating. false keeps that query. With clean URLs off, GET / is a directory listing of this folder; the rewrite below serves index.html for /.",
+      "source": "/",
+      "destination": "/index.html"
+    }
+  ]
+}

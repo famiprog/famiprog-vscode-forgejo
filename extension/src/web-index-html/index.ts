@@ -1,7 +1,8 @@
+import { forgejoUriFromRepoUrl } from '../shared/forgejoUri.js';
 import { COMMAND_GET_ACCESS_TOKEN, COMMAND_REDIRECT_TO_LOGIN } from '../shared/oauth.js';
 
 /**
- * Boot script imported by forgejo-tests/index.html and vscode-web/index.html.
+ * Boot script imported by .../index.html.
  * Built to dist/web-index-html/index.js.
  *
  * Each page passes its own paths. The two hosts lay the files out differently.
@@ -36,34 +37,25 @@ export interface Session {
 interface WorkbenchModule {
     create(element: HTMLElement, options: WorkbenchOptions): void;
     URI: {
-        parse(value: string): unknown;
-        from(components: { scheme: string; path: string }): unknown;
+        from(components: { scheme: string; authority: string; path: string }): unknown;
     };
 }
 
 interface WorkbenchOptions {
     commands?: { id: string; handler: () => any }[];
     webviewEndpoint?: string;
-    workspaceProvider?: unknown;
+    workspaceProvider?: { workspace?: unknown };
 }
 
 const AUTHORIZE_PATH = '/login/oauth/authorize';
 const TOKEN_PATH = '/login/oauth/access_token';
 
-/**
- * Locations for one hosting of the page. `index.html` owns every path;
- * the two hosts (Forgejo public assets, and the local `vscode-web` server) differ.
- */
 export interface BootPaths {
-    clientId: string;
     /**
-     * OAuth redirect URI. An absolute URL is sent as written, so `http://localhost:3002`
-     * does not become `http://localhost:3002/`. A path is resolved against `location.origin`.
+     * Directory for `globalThis._VSCODE_FILE_ROOT`. Include the trailing slash.
+     * A leading "/" is from the origin. A relative path is from this page, so the
+     * same index.html works at `/` and under a GitHub Pages prefix.
      */
-    redirectPath: string;
-    /** Forgejo origin that issues tokens. The page origin, when Forgejo itself hosts the page. */
-    forgejoOrigin: string;
-    /** Directory for `globalThis._VSCODE_FILE_ROOT`. Include the trailing slash. */
     vscodeFileRoot: string;
     /**
      * This extension's directory relative to VS Code's builtin extensions directory
@@ -73,15 +65,30 @@ export interface BootPaths {
     extensionPackageJsonUrl: string;
 }
 
+export interface OAuth2Config extends BootPaths {
+    clientId: string;
+    /**
+     * OAuth redirect URI. An absolute URL is sent as written, so `http://localhost:3002`
+     * does not become `http://localhost:3002/`. A path is resolved against `location.origin`.
+     */
+    redirectPath: string;
+    /** Forgejo origin that issues tokens. The page origin, when Forgejo itself hosts the page. */
+    forgejoOrigin: string;
+}
+
 const PKCE_KEY = 'famiprog-vscode-forgejo.auth.pkce';
 const SESSION_KEY = 'famiprog-vscode-forgejo.auth.session';
 /** Refresh this long before `expiresAt`, so a request does not leave with a token that expires in flight. */
 const EXPIRY_MARGIN_MS = 60_000;
 
-/** Absolute URLs resolved from {@link BootPaths}. */
+/** Absolute URLs resolved from {@link OAuth2Config}. */
 let page: { redirectUri: string; authorizeUrl: string; tokenUrl: string };
 
-export async function boot(paths: BootPaths, optionsCallback?: (workbench: Pick<WorkbenchModule, 'URI'>) => Promise<WorkbenchOptions | void>): Promise<void> {
+function isOAuth2Config(paths: BootPaths): paths is OAuth2Config {
+    return 'clientId' in paths;
+}
+
+export async function boot(paths: BootPaths | OAuth2Config, optionsCallback?: () => Promise<WorkbenchOptions | void>): Promise<void> {
     try {
         await bootInternal(paths, optionsCallback);
     } catch (error) {
@@ -91,7 +98,12 @@ export async function boot(paths: BootPaths, optionsCallback?: (workbench: Pick<
 
 let session: Session;
 
-async function bootInternal(paths: BootPaths, optionsCallback?: (workbench: Pick<WorkbenchModule, 'URI'>) => Promise<WorkbenchOptions | void>): Promise<void> {
+async function bootInternal(paths: BootPaths | OAuth2Config, optionsCallback?: () => Promise<WorkbenchOptions | void>): Promise<void> {
+    if (!isOAuth2Config(paths)) {
+        await startWorkbench(paths, optionsCallback);
+        return;
+    }
+
     page = {
         redirectUri: absoluteUrl(paths.redirectPath) ? paths.redirectPath : new URL(paths.redirectPath, location.origin).href,
         authorizeUrl: new URL(AUTHORIZE_PATH, paths.forgejoOrigin).href,
@@ -147,9 +159,9 @@ async function bootInternal(paths: BootPaths, optionsCallback?: (workbench: Pick
     await startWorkbench(paths, optionsCallback);
 }
 
-async function startWorkbench(paths: BootPaths, optionsCallback?: (workbench: Pick<WorkbenchModule, 'URI'>) => Promise<WorkbenchOptions | void>): Promise<void> {
+async function startWorkbench(paths: BootPaths, optionsCallback?: () => Promise<WorkbenchOptions | void>): Promise<void> {
     // Set before the workbench import. Importing it earlier throws "Cannot determine URI for module id!".
-    const fileRoot = new URL(paths.vscodeFileRoot, location.origin);
+    const fileRoot = new URL(paths.vscodeFileRoot, document.baseURI);
     globalThis._VSCODE_FILE_ROOT = fileRoot.toString();
 
     const packageJSON = await fetch(paths.extensionPackageJsonUrl, { cache: 'no-store' }).then(response => response.json());
@@ -160,27 +172,45 @@ async function startWorkbench(paths: BootPaths, optionsCallback?: (workbench: Pi
     // create is declared in vscode/src/vs/workbench/browser/web.factory.ts
     const workbenchUrl = new URL('vs/workbench/workbench.web.main.internal.js', fileRoot);
     const { create, URI } = await import(workbenchUrl.href) as WorkbenchModule;
-    const options = await optionsCallback?.({ URI });
+    const options = await optionsCallback?.() ?? {};
+    // `?repoUrl=http://localhost:3001/forgejo/sample-repo` opens that folder.
+    // This replaces the temporary workspace the page callback returns.
+    const repoUrl = new URLSearchParams(location.search).get('repoUrl')?.trim();
+    if (repoUrl) {
+        options.workspaceProvider = {
+            ...options.workspaceProvider,
+            workspace: { folderUri: URI.from(forgejoUriFromRepoUrl(repoUrl)) },
+        };
+    }
+    const commands = [...(options?.commands ?? [])];
+    // Both commands are always registered. Without {@link OAuth2Config} there is no session:
+    // the token handler returns nothing, and the login handler does nothing.
+    commands.push({
+        id: COMMAND_GET_ACCESS_TOKEN,
+        handler: async (): Promise<string | undefined> => {
+            if (!isOAuth2Config(paths)) {
+                return undefined;
+            }
+            const sessionExpiresSoon = session.expiresAt - Date.now() <= EXPIRY_MARGIN_MS;
+            if (sessionExpiresSoon) {
+                session = await refresh(session);
+            }
+
+            return session.accessToken;
+        },
+    }, {
+        id: COMMAND_REDIRECT_TO_LOGIN,
+        handler: () => {
+            if (!isOAuth2Config(paths)) {
+                return;
+            }
+            backupSession(null);
+            void redirectToAuthorize(paths.clientId);
+        },
+    });
     create(document.body, {
         ...options,
-        commands: [...(options?.commands ?? []),
-        {
-            id: COMMAND_GET_ACCESS_TOKEN,
-            handler: async (): Promise<string> => {
-                const sessionExpiresSoon = session.expiresAt - Date.now() <= EXPIRY_MARGIN_MS;
-                if (sessionExpiresSoon) {
-                    session = await refresh(session);
-                }
-
-                return session.accessToken;
-            },
-        }, {
-            id: COMMAND_REDIRECT_TO_LOGIN,
-            handler: () => {
-                backupSession(null);
-                void redirectToAuthorize(paths.clientId);
-            },
-        }],
+        commands,
         webviewEndpoint: new URL('vs/workbench/contrib/webview/browser/pre', fileRoot).pathname,
     });
 }

@@ -1,0 +1,91 @@
+# Welcome page at http://127.0.0.1:8080/. The HTML is the ConfigMap below.
+# Other Ingresses on this host use regex, so a plain path / is swallowed by the default backend.
+# Path /$ is the regex ^/$ and matches only the root.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: index-html
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8">
+      <title>k3d lab</title>
+    </head>
+    <body>
+      <h1>k3d lab</h1>
+      <ul>
+        <li><a href="/auth-app/">auth-app</a>; password = <code>pass</code></li>
+        <li><a href="/forgejo/">Forgejo</a></li>
+        <li><a href="/vscode-web/">vscode-web</a></li>
+        <li><a href="/vscode-web/?repoUrl=http://127.0.0.1:8080/forgejo/forgejo/sample-repo">vscode-web -> sample-repo</a></li>
+        <li><a href="/vscode-web/?repoUrl=http://127.0.0.1:8080/forgejo/forgejo/sample-repo-private">vscode-web -> sample-repo-private</a></li>
+      </ul>
+    </body>
+    </html>
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: index-html
+spec:
+  selector:
+    app: index-html
+  ports:
+  - port: 80
+    protocol: TCP
+    name: http
+    targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: index-html
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: index-html
+  template:
+    metadata:
+      labels:
+        app: index-html
+    spec:
+      containers:
+      - name: index-html
+        image: nginx:1.27-alpine
+        ports:
+        - name: http
+          containerPort: 80
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html/index.html
+          subPath: index.html
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+      volumes:
+      - name: html
+        configMap:
+          name: index-html
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: index-html
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /$
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: index-html
+            port:
+              number: 80

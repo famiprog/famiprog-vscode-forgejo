@@ -1,0 +1,137 @@
+# Forgejo
+# - forgejo this is the identifier for this deployment
+# - Url: http://127.0.0.1:8080/forgejo/
+# - Data: forgejo-tests/volume-data, mounted at /data. Same directory as docker-compose.
+# - SSH (container port 22) is on the ClusterIP service. Add a LoadBalancer if git+ssh from outside the cluster is needed.
+# - auth-app is the login app. The ingress calls /auth before Forgejo
+#   and forwards X-WEBAUTH-USER and X-WEBAUTH-EMAIL. Login and logout are /login and /logout.
+---
+# Service (declares a port for our pod)
+apiVersion: v1
+kind: Service
+metadata:
+  name: forgejo
+spec:
+  selector:
+    app: forgejo
+  ports:
+  - port: 3000
+    protocol: TCP
+    name: http
+    targetPort: http
+  - port: 22
+    protocol: TCP
+    name: ssh
+    targetPort: ssh
+---
+# Deployment definition
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forgejo
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: forgejo
+  template:
+    metadata:
+      labels:
+        app: forgejo
+    spec:
+      securityContext:
+        fsGroup: 1000
+      volumes:
+      - name: data
+        hostPath:
+          path: /forgejo-data
+          type: Directory
+      containers:
+      - name: forgejo
+        image: codeberg.org/forgejo/forgejo:17
+        env:
+        - name: USER_UID
+          value: "1000"
+        - name: USER_GID
+          value: "1000"
+        - name: FORGEJO__cors__ENABLED
+          value: "true"
+        - name: FORGEJO__cors__ALLOW_DOMAIN
+          value: "*"
+        - name: FORGEJO__server__DOMAIN
+          value: 127.0.0.1
+        - name: FORGEJO__server__ROOT_URL
+          value: http://127.0.0.1:8080/forgejo/
+        - name: FORGEJO__server__SSH_DOMAIN
+          value: 127.0.0.1
+        - name: FORGEJO__server__SSH_PORT
+          value: "22"
+        - name: FORGEJO__service__ENABLE_REVERSE_PROXY_AUTHENTICATION
+          value: "true"
+        # The web UI honors X-WEBAUTH-USER. The API does not, unless this is set.
+        - name: FORGEJO__service__ENABLE_REVERSE_PROXY_AUTHENTICATION_API
+          value: "true"
+        - name: FORGEJO__service__ENABLE_REVERSE_PROXY_AUTO_REGISTRATION
+          value: "true"
+        # k3s pod CIDR. Ingress-nginx connects from a pod IP.
+        - name: FORGEJO__security__REVERSE_PROXY_TRUSTED_PROXIES
+          value: "10.42.0.0/16"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+        ports:
+        - name: http
+          containerPort: 3000
+        - name: ssh
+          containerPort: 22
+        volumeMounts:
+        - mountPath: /data
+          name: data
+        readinessProbe:
+          httpGet:
+            path: /api/healthz
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 10
+---
+# Ingress (url mapping)
+# Note: do not have the same DNS/path in multiple files
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: forgejo
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "512m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    # Subrequest to auth-app. 200 lets the request through and these response headers are sent to Forgejo.
+    # 401 sends the browser to the login form.
+    nginx.ingress.kubernetes.io/auth-url: http://auth-app.default.svc.cluster.local:8080/auth
+    nginx.ingress.kubernetes.io/auth-signin: http://127.0.0.1:8080/auth-app/login
+    nginx.ingress.kubernetes.io/auth-response-headers: X-WEBAUTH-USER,X-WEBAUTH-EMAIL
+    # ROOT_URL makes Forgejo emit /forgejo/... links, but the process serves /...
+    # The regex keeps the prefix in the browser and strips it here.
+    # /forgejo/assets/js/index.js -> /assets/js/index.js  (group 2 is assets/js/index.js)
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /forgejo(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: forgejo
+            port:
+              number: 3000

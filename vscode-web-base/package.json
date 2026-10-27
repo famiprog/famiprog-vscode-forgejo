@@ -1,0 +1,13 @@
+{
+  "name": "forgejo-tests",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "serve": "npx serve . -p 3002 --symlinks",
+    "package-web": "cd ../extension && yarn package-web",
+    "gh-pages": "yarn package-web && dest=../../famiprog-vscode-forgejo-gh-pages/vscode-web-public; rm -rf \"$dest\" && mkdir -p \"$dest/node_modules\" \"$dest/famiprog-vscode-forgejo\" && cp index.html \"$dest/\" && cp -a node_modules/@github1s \"$dest/node_modules/\" && cp -aL famiprog-vscode-forgejo/package.json famiprog-vscode-forgejo/dist \"$dest/famiprog-vscode-forgejo/\""
+  },
+  "dependencies": {
+    "@github1s/vscode-web": "^0.30.3"
+  }
+}
