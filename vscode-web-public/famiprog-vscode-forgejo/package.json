@@ -1,7 +1,7 @@
 {
   "name": "famiprog-vscode-forgejo",
   "publisher": "famiprog",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "engines": {
     "vscode": "^1.120.0"
