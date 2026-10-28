@@ -19,6 +19,7 @@ Explanation of dirs/files:
     * via `package.json > script serve` - opens a local web server (on port 3002)
     * via `package.json > script gh-pages` - which copies to sibling dir `famiprog-vscode-forgejo-gh-pages`, which is the same Git repo, but checked out at branch https://github.com/famiprog/famiprog-vscode-forgejo/tree/gh-pages. This is a "GitHub Pages" branch; it's content is served at https://famiprog.github.io/famiprog-vscode-forgejo/
     * cf. bullet below
+  * `customizeBootOptions.js` - Meant to be overridden (e.g. via a docker image that extends/builds upon the one from `vscode-web-docker`). E.g. to include additional extensions.
 * `vscode-web-docker`
   * `docker-build.sh` - Creates a docker image w/ a basic web server (nginx) and files from `vscode-web-base`.
   * `docker-run.sh` - Runs that image on host port 3002.

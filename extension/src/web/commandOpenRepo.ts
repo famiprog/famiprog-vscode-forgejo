@@ -26,6 +26,10 @@ async function command(): Promise<vscode.Uri | undefined> {
         return;
     }
 
+    return addRepoFolder(uri);
+}
+
+export async function addRepoFolder(uri: vscode.Uri): Promise<vscode.Uri | undefined> {
     const folders = vscode.workspace.workspaceFolders ?? [];
     const name = folderName(uri);
     const added = vscode.workspace.updateWorkspaceFolders(folders.length, 0, { uri, name });

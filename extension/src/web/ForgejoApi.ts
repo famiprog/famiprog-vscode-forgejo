@@ -14,6 +14,9 @@ import { Repo } from './Repo';
 /** A page is capped by the server (`MAX_RESPONSE_ITEMS`), so we only ask for "as much as possible". */
 const TREE_PAGE_SIZE = 1000;
 
+/** Forgejo's default `MAX_RESPONSE_ITEMS`. A shorter page means there is no next page. */
+const REPO_LIST_PAGE_SIZE = 50;
+
 export class ForgejoApi {
 
     /** Set in {@link create} or {@link setAccessToken} once the branch to read is known. */
@@ -56,7 +59,6 @@ export class ForgejoApi {
             if (token) {
                 config.headers.set('Authorization', `token ${token}`);
             }
-
             return config;
         });
 
@@ -66,6 +68,37 @@ export class ForgejoApi {
             }
             throw error;
         });
+    }
+
+    /**
+     * `owner/repo` names the signed-in user can see: repos they own, collaborate on, or that belong to their orgs.
+     * GET /user/repos. A name that is not in this list can still be opened by typing `owner/repo`.
+     *
+     * That route is not scoped to a repository. Owner and repo stay empty; the client only needs the origin.
+     */
+    static async listVisibleRepoNames(origin: string): Promise<string[]> {
+        // const api = new ForgejoApi(origin.replace(/\/+$/, ''), '', '');
+        // const names: string[] = [];
+        // for (let page = 1; page <= 100; page++) {
+        //     const { data } = await forgejots.userCurrentListRepos({
+        //         ...api.callOptions,
+        //         query: { page, limit: REPO_LIST_PAGE_SIZE, order_by: 'alphabetically' },
+        //     });
+        //     const pageRepos = data ?? [];
+        //     for (const repo of pageRepos) {
+        //         const name = repo.full_name?.trim()
+        //             || (repo.owner?.login && repo.name ? `${repo.owner.login}/${repo.name}` : '');
+        //         if (name) {
+        //             names.push(name);
+        //         }
+        //     }
+        //     if (pageRepos.length < REPO_LIST_PAGE_SIZE) {
+        //         break;
+        //     }
+        // }
+        // names.sort((a, b) => a.localeCompare(b));
+        // return names;
+        return [];
     }
 
     /**

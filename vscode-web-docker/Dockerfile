@@ -28,7 +28,7 @@ RUN yarn package-web
 FROM nginx:1.27-alpine
 
 COPY vscode-web-docker/nginx.conf /etc/nginx/conf.d/default.conf
-COPY vscode-web-base/index.html /usr/share/nginx/html/index.html
+COPY vscode-web-base/index.html vscode-web-base/customizeBootOptions.js /usr/share/nginx/html/
 COPY --from=build /src/vscode-web-base/node_modules/@github1s/vscode-web /usr/share/nginx/html/node_modules/@github1s/vscode-web
 COPY --from=build /src/extension/package.json /usr/share/nginx/html/famiprog-vscode-forgejo/package.json
 COPY --from=build /src/extension/dist /usr/share/nginx/html/famiprog-vscode-forgejo/dist

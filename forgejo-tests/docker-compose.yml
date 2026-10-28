@@ -23,7 +23,7 @@ services:
     volumes:
       - ./volume-data:/data
       # http://localhost:3001/assets/vscode-web/index.html
-      - ../vscode-web/node_modules/@github1s/vscode-web:/data/gitea/public/assets/vscode-web:ro
+      - ../vscode-web-base/node_modules/@github1s/vscode-web:/data/gitea/public/assets/vscode-web:ro
       - ./index.html:/data/gitea/public/assets/vscode-web/index.html:ro
       # http://localhost:3001/assets/famiprog-vscode-forgejo/
       - ../extension:/data/gitea/public/assets/famiprog-vscode-forgejo:ro

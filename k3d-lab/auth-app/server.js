@@ -9,6 +9,7 @@ const port = Number(process.env.PORT) || 8081;
 // Empty when running `node server.js` on the host. /auth-app in the cluster.
 const base = (process.env.BASE_PATH || '').replace(/\/$/, '');
 const afterLogin = process.env.AFTER_LOGIN_URL || (base ? `${base}/` : '/');
+// nginx auth-signin appends ?rd=<original url>. Follow it after login when it stays on this host.
 // One shared password for every username. The lab manifest sets it; production sets its own.
 const password = process.env.PASSWORD;
 if (!password) {
@@ -68,11 +69,29 @@ function validUsername(name) {
   return typeof name === 'string' && name.length > 0 && name.length <= 64 && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name);
 }
 
-function page(user, error) {
+// Absolute rd from nginx, or a same-host path. Anything else is dropped so login cannot be an open redirect.
+function nextUrl(req, raw) {
+  const host = req.headers.host;
+  if (!host || !raw || typeof raw !== 'string' || raw.length > 2048) return null;
+  let target;
+  try {
+    target = new URL(raw, `http://${host}/`);
+  } catch {
+    return null;
+  }
+  if (target.protocol !== 'http:' && target.protocol !== 'https:') return null;
+  if (target.host.toLowerCase() !== host.toLowerCase()) return null;
+  if (!target.pathname.startsWith('/') || target.pathname.startsWith('//')) return null;
+  return `${target.pathname}${target.search}${target.hash}`;
+}
+
+function page(user, error, next) {
+  const back = next ? `<input type="hidden" name="rd" value="${escapeHtml(next)}">` : '';
   const body = user
     ? `<p>Signed in as <strong>${escapeHtml(user)}</strong>.</p>
        <form method="post" action="${under('/logout')}"><button type="submit">Log out</button></form>`
     : `<form method="post" action="${under('/login')}">
+         ${back}
          <label>Username <input name="username" autocomplete="username" required autofocus></label>
          <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
          <button type="submit">Log in</button>
@@ -142,27 +161,34 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && (path === under('/') || path === base || path === under('/login'))) {
+    const next = nextUrl(req, new URL(req.url, 'http://127.0.0.1').searchParams.get('rd'));
+    const user = userFrom(req);
+    if (user && next) {
+      redirect(res, next);
+      return;
+    }
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(page(userFrom(req)));
+    res.end(page(user, null, next));
     return;
   }
 
   if (req.method === 'POST' && path === under('/login')) {
     const form = await readForm(req);
+    const next = nextUrl(req, form.get('rd'));
     const username = (form.get('username') || '').trim();
     if (!validUsername(username)) {
       res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(page(null, 'Use letters, digits, and . _ - (max 64 characters).'));
+      res.end(page(null, 'Use letters, digits, and . _ - (max 64 characters).', next));
       return;
     }
     if (!passwordMatches(form.get('password') || '')) {
       res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(page(null, 'Wrong password.'));
+      res.end(page(null, 'Wrong password.', next));
       return;
     }
     const token = crypto.randomBytes(24).toString('hex');
     sessions.set(token, username);
-    redirect(res, afterLogin, `auth_app=${token}; HttpOnly; SameSite=Lax; Path=/`);
+    redirect(res, next || afterLogin, `auth_app=${token}; HttpOnly; SameSite=Lax; Path=/`);
     return;
   }
 

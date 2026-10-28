@@ -5,7 +5,7 @@ import { COMMAND_GET_ACCESS_TOKEN, COMMAND_REDIRECT_TO_LOGIN } from '../shared/o
  * Boot script imported by .../index.html.
  * Built to dist/web-index-html/index.js.
  *
- * Each page passes its own paths. The two hosts lay the files out differently.
+ * Each page calls {@link setVscodeFileRoot} with its own VS Code directory, then {@link boot}.
  * The Forgejo authorize and token paths are the same for both, so they stay here.
  *
  * The page does the Forgejo round trip. VS Code is created only after an access token is ready.
@@ -13,8 +13,12 @@ import { COMMAND_GET_ACCESS_TOKEN, COMMAND_REDIRECT_TO_LOGIN } from '../shared/o
  */
 
 declare global {
+    // type inspired from vscode/src/typings/vscode-globals-product.d.ts
     var _VSCODE_FILE_ROOT: string;
+    // type inspired from github1s/vscode-web/src/setup.d.ts
     var _VSCODE_WEB: { builtinExtensions: { extensionPath: string; packageJSON: unknown }[] };
+    /** Workbench bundle URL. Set by {@link setVscodeFileRoot}. */
+    var _VSCODE_FILE_SCRIPT: string;
 }
 
 /**
@@ -33,39 +37,38 @@ export interface Session {
     refreshToken: string;
 }
 
-// from vscode/src/vs/workbench/browser/web.factory.ts
+// type inspired from from vscode/src/vs/workbench/browser/web.factory.ts
 interface WorkbenchModule {
-    create(element: HTMLElement, options: WorkbenchOptions): void;
+    create(element: HTMLElement, options: IWorkbenchConstructionOptions): void;
     URI: {
         from(components: { scheme: string; authority: string; path: string }): unknown;
     };
 }
 
-interface WorkbenchOptions {
+export interface BootOptions {
+    workbenchConstructionOptions: IWorkbenchConstructionOptions;
+    additionalOptions?: AdditionalOptions;
+    oauth2Config?: OAuth2Config;
+}
+
+// type inspired from vscode/src/vs/workbench/browser/web.api.ts
+interface IWorkbenchConstructionOptions {
     commands?: { id: string; handler: () => any }[];
     webviewEndpoint?: string;
     workspaceProvider?: { workspace?: unknown };
 }
 
+interface AdditionalOptions {
+    /**
+     * E.g. `famiprog-vscode-forgejo`, provided this is sibling of index.html.
+     */
+    extensions?: { pathRelativeToIndexHtml: string }[];
+}
+
 const AUTHORIZE_PATH = '/login/oauth/authorize';
 const TOKEN_PATH = '/login/oauth/access_token';
 
-export interface BootPaths {
-    /**
-     * Directory for `globalThis._VSCODE_FILE_ROOT`. Include the trailing slash.
-     * A leading "/" is from the origin. A relative path is from this page, so the
-     * same index.html works at `/` and under a GitHub Pages prefix.
-     */
-    vscodeFileRoot: string;
-    /**
-     * This extension's directory relative to VS Code's builtin extensions directory
-     * (`<vscodeFileRoot>../extensions`). A leading "/" is not treated as absolute.
-     */
-    extensionPath: string;
-    extensionPackageJsonUrl: string;
-}
-
-export interface OAuth2Config extends BootPaths {
+export interface OAuth2Config {
     clientId: string;
     /**
      * OAuth redirect URI. An absolute URL is sent as written, so `http://localhost:3002`
@@ -84,30 +87,28 @@ const EXPIRY_MARGIN_MS = 60_000;
 /** Absolute URLs resolved from {@link OAuth2Config}. */
 let page: { redirectUri: string; authorizeUrl: string; tokenUrl: string };
 
-function isOAuth2Config(paths: BootPaths): paths is OAuth2Config {
-    return 'clientId' in paths;
-}
-
-export async function boot(paths: BootPaths | OAuth2Config, optionsCallback?: () => Promise<WorkbenchOptions | void>): Promise<void> {
+export async function boot(options: BootOptions): Promise<void> {
     try {
-        await bootInternal(paths, optionsCallback);
+        await bootInternal(options);
     } catch (error) {
         document.body.textContent = error instanceof Error ? error.message : String(error);
+        console.error(error);
     }
 }
 
 let session: Session;
 
-async function bootInternal(paths: BootPaths | OAuth2Config, optionsCallback?: () => Promise<WorkbenchOptions | void>): Promise<void> {
-    if (!isOAuth2Config(paths)) {
-        await startWorkbench(paths, optionsCallback);
+async function bootInternal(options: BootOptions): Promise<void> {
+    const { oauth2Config:oauth } = options;
+    if (!oauth) {
+        await startWorkbench(options);
         return;
     }
 
     page = {
-        redirectUri: absoluteUrl(paths.redirectPath) ? paths.redirectPath : new URL(paths.redirectPath, location.origin).href,
-        authorizeUrl: new URL(AUTHORIZE_PATH, paths.forgejoOrigin).href,
-        tokenUrl: new URL(TOKEN_PATH, paths.forgejoOrigin).href,
+        redirectUri: absoluteUrl(oauth.redirectPath) ? oauth.redirectPath : new URL(oauth.redirectPath, location.origin).href,
+        authorizeUrl: new URL(AUTHORIZE_PATH, oauth.forgejoOrigin).href,
+        tokenUrl: new URL(TOKEN_PATH, oauth.forgejoOrigin).href,
     };
     const params = new URLSearchParams(location.search);
     const isCallback = params.has('code') || params.has('error');
@@ -116,7 +117,7 @@ async function bootInternal(paths: BootPaths | OAuth2Config, optionsCallback?: (
         // session = restoreSession()!;
         if (!session) {
             // and is the first load ever; so nothing is saved
-            await redirectToAuthorize(paths.clientId);
+            await redirectToAuthorize(oauth.clientId);
             return;
         }
     } else {
@@ -146,49 +147,70 @@ async function bootInternal(paths: BootPaths | OAuth2Config, optionsCallback?: (
 
         const origin = new URL(page.tokenUrl).origin;
         const tokensFromServer = await requestToken({
-            client_id: paths.clientId,
+            client_id: oauth.clientId,
             code,
             grant_type: 'authorization_code',
             redirect_uri: page.redirectUri,
             code_verifier: saved.codeVerifier,
         });
-        session = { origin, clientId: paths.clientId, ...tokensFromServer };
+        session = { origin, clientId: oauth.clientId, ...tokensFromServer };
         backupSession(session);
     }
 
-    await startWorkbench(paths, optionsCallback);
+    await startWorkbench(options);
 }
 
-async function startWorkbench(paths: BootPaths, optionsCallback?: () => Promise<WorkbenchOptions | void>): Promise<void> {
-    // Set before the workbench import. Importing it earlier throws "Cannot determine URI for module id!".
-    const fileRoot = new URL(paths.vscodeFileRoot, document.baseURI);
-    globalThis._VSCODE_FILE_ROOT = fileRoot.toString();
+/**
+ * Should be the very first call. More precisely before the workbench import. Importing it earlier throws "Cannot determine URI for module id!".
+ * 
+ * This sets `globalThis._VSCODE_FILE_ROOT` (required by VS Code -> create()). 
+ * And `globalThis._VSCODE_FILE_SCRIPT`. Useful if you want to import stuff e.g. 
+ * 
+ * ```ts
+ * const { URI } = await import(globalThis._VSCODE_FILE_SCRIPT);
+ * ```
+ */
+export function setVscodeFileRoot(vscodeFileRoot: string) {
+    // the "reference" = vscode-web-base/node_modules/@github1s/vscode-web/index.html is:
+    // globalThis._VSCODE_FILE_ROOT = new URL('/vscode/', window.location.origin).toString();
+    globalThis._VSCODE_FILE_ROOT = new URL(vscodeFileRoot, document.baseURI).toString(); // or .href
+    globalThis._VSCODE_FILE_SCRIPT = new URL('vs/workbench/workbench.web.main.internal.js', globalThis._VSCODE_FILE_ROOT).toString();
+}
 
-    const packageJSON = await fetch(paths.extensionPackageJsonUrl, { cache: 'no-store' }).then(response => response.json());
-    globalThis._VSCODE_WEB = {
-        builtinExtensions: [{ extensionPath: paths.extensionPath, packageJSON }],
-    };
+async function startWorkbench({ workbenchConstructionOptions, additionalOptions, oauth2Config } : BootOptions): Promise<void> {
+    if (!globalThis._VSCODE_FILE_ROOT) {
+        throw new Error('Call setVscodeFileRoot before boot.');
+    }
+    const builtinExtensionsDir = new URL('../extensions/', globalThis._VSCODE_FILE_ROOT);
+    const builtinExtensions = await Promise.all((additionalOptions?.extensions ?? []).map(async extension => {
+        const extensionDir = new URL(extension.pathRelativeToIndexHtml.replace(/\/?$/, '/'), document.baseURI);
+        // e.g. for input `famiprog-vscode-forgejo`, we have: 
+        // './famiprog-vscode-forgejo/package.json'
+        const packageJSON = await fetch(new URL('package.json', extensionDir), { cache: 'no-store' }).then(response => response.json());
+        // '../../../../famiprog-vscode-forgejo', 
+        // Relative to <vscodeRoot>../extensions. A leading "/" is not absolute.
+        return { extensionPath: relativePath(builtinExtensionsDir, extensionDir), packageJSON };
+    }));
+    // This is the mechanism of @github1s/vscode-web to load extensions. I think the original vscode-web also has something (that probably is reused by github1s?)
+    // I say this by looking at the doc of IWorkbenchConstructionOptions.additionalBuiltinExtensions
+    globalThis._VSCODE_WEB = { builtinExtensions };
 
-    // create is declared in vscode/src/vs/workbench/browser/web.factory.ts
-    const workbenchUrl = new URL('vs/workbench/workbench.web.main.internal.js', fileRoot);
-    const { create, URI } = await import(workbenchUrl.href) as WorkbenchModule;
-    const options = await optionsCallback?.() ?? {};
-    // `?repoUrl=http://localhost:3001/forgejo/sample-repo` opens that folder.
-    // This replaces the temporary workspace the page callback returns.
+    const { create, URI } = await import(globalThis._VSCODE_FILE_SCRIPT) as WorkbenchModule;
+    // Query string of type `?repoUrl=http://localhost:3001/forgejo/sample-repo` opens that folder.
     const repoUrl = new URLSearchParams(location.search).get('repoUrl')?.trim();
     if (repoUrl) {
-        options.workspaceProvider = {
-            ...options.workspaceProvider,
+        workbenchConstructionOptions.workspaceProvider = {
+            ...workbenchConstructionOptions.workspaceProvider,
             workspace: { folderUri: URI.from(forgejoUriFromRepoUrl(repoUrl)) },
         };
     }
-    const commands = [...(options?.commands ?? [])];
+    const commands = [...(workbenchConstructionOptions.commands ?? [])];
     // Both commands are always registered. Without {@link OAuth2Config} there is no session:
     // the token handler returns nothing, and the login handler does nothing.
     commands.push({
         id: COMMAND_GET_ACCESS_TOKEN,
         handler: async (): Promise<string | undefined> => {
-            if (!isOAuth2Config(paths)) {
+            if (!oauth2Config) {
                 return undefined;
             }
             const sessionExpiresSoon = session.expiresAt - Date.now() <= EXPIRY_MARGIN_MS;
@@ -201,18 +223,48 @@ async function startWorkbench(paths: BootPaths, optionsCallback?: () => Promise<
     }, {
         id: COMMAND_REDIRECT_TO_LOGIN,
         handler: () => {
-            if (!isOAuth2Config(paths)) {
+            if (!oauth2Config) {
                 return;
             }
             backupSession(null);
-            void redirectToAuthorize(paths.clientId);
+            void redirectToAuthorize(oauth2Config.clientId);
         },
     });
+    // type of create declared in vscode/src/vs/workbench/browser/web.factory.ts
     create(document.body, {
-        ...options,
+        ...workbenchConstructionOptions,
         commands,
-        webviewEndpoint: new URL('vs/workbench/contrib/webview/browser/pre', fileRoot).pathname,
+        // bug: webviews didn't work. was .pathname; should be .href
+        // .href, not .pathname. The workbench compares this URL's origin with the
+        // webview-ready message and drops the message when they differ, so the
+        // editor frame stays empty.
+        //   .pathname → /node_modules/@github1s/vscode-web/vscode/vs/workbench/contrib/webview/browser/pre
+        //   .href     → http://localhost:3002/node_modules/@github1s/vscode-web/vscode/vs/workbench/contrib/webview/browser/pre
+        webviewEndpoint: new URL('vs/workbench/contrib/webview/browser/pre', globalThis._VSCODE_FILE_ROOT).href,
     });
+}
+
+/**
+ * Path from `from` to `to`, both directories. VS Code joins this onto its builtin extensions directory.
+ *
+ * vscode-web-base, file root `.../node_modules/@github1s/vscode-web/vscode/`:
+ *   from `.../node_modules/@github1s/vscode-web/extensions/`
+ *   to   `/famiprog-vscode-forgejo/`
+ *   → `../../../../famiprog-vscode-forgejo`
+ *
+ * forgejo-tests, file root `/assets/vscode-web/vscode/`:
+ *   from `/assets/vscode-web/extensions/`
+ *   to   `/assets/famiprog-vscode-forgejo/`
+ *   → `../../famiprog-vscode-forgejo`
+ */
+function relativePath(from: URL, to: URL): string {
+    const fromParts = from.pathname.split('/').filter(Boolean);
+    const toParts = to.pathname.split('/').filter(Boolean);
+    let shared = 0;
+    while (shared < fromParts.length && shared < toParts.length && fromParts[shared] === toParts[shared]) {
+        shared++;
+    }
+    return [...Array(fromParts.length - shared).fill('..'), ...toParts.slice(shared)].join('/');
 }
 
 /**

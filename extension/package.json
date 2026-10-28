@@ -1,7 +1,7 @@
 {
   "name": "famiprog-vscode-forgejo",
   "publisher": "famiprog",
-  "version": "0.1.0",
+  "version": "0.2.0-snapshot",
   "type": "module",
   "engines": {
     "vscode": "^1.120.0"
@@ -21,6 +21,11 @@
         "title": "Forgejo: Open repo"
       },
       {
+        "command": "famiprog-vscode-forgejo.openMyRepo",
+        "title": "Forgejo: My repos -> open one",
+        "enablement": "config.famiprog-vscode-forgejo.embedderUrl != ''"
+      },
+      {
         "command": "famiprog-vscode-forgejo.setAccessToken",
         "title": "Set access token",
         "category": "Forgejo",
@@ -35,6 +40,17 @@
           "group": "navigation"
         }
       ]
+    },
+    "configuration": {
+      "title": "Forgejo",
+      "properties": {
+        "famiprog-vscode-forgejo.embedderUrl": {
+          "type": "string",
+          "default": "",
+          "scope": "application",
+          "description": "Origin of the Forgejo server this workbench is embedded in."
+        }
+      }
     },
     "colors": [
       {
