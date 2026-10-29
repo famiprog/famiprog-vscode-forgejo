@@ -36,6 +36,41 @@ Explanation of dirs/files:
   * `auth-app` - The code of `auth-app`: `.js` and `Dockerfile`.
     * `docker-build.sh`, `docker-publish-lab.sh`: idem cf. `vscode-web-docker`.
 
+# k3d-lab
+
+I used this to learn and experiment a config where I combine together:
+* `auth-app` - a simple node app that mimics a "main" app, that acts also auth provider/sso for the following. In prod, the main app is a Spring/Java based app.
+* Forgejo Git server.
+* VS Code web + this extension. In prod I reuse/extend the Docker image, in order to add additional custom extensions.
+
+The SSO happens like this (overview generated w/ AI):
+
+
+> A browser request to `http://127.0.0.1:8080/` never touches the Kubernetes API (`127.0.0.1:6550` in `k3d.yaml`). It enters through the k3d port map, then follows the Ingress.
+> 
+> ```mermaid
+> flowchart LR
+>   browser["Browser :8080"]
+>   k3d["k3d load balancer :80"]
+>   svclb["k3s ServiceLB on the node :80"]
+>   nginx["ingress-nginx"]
+>   auth["Service forgejo-auth :8080"]
+>   app["Service forgejo :3000"]
+>   browser --> k3d --> svclb --> nginx
+>   nginx -->|"subrequest /auth"| auth
+>   nginx --> app
+> ```
+> 
+> 1. **Host port 8080.** `k3d.yaml` maps `8080:80` onto the k3d load balancer. Docker accepts the browser connection on the host and hands it to that container on port 80. The load balancer proxies port 80 to the same port on the server node.
+> 
+> 2. **Node port 80.** ingress-nginx was installed as a `LoadBalancer` Service. k3s ServiceLB (on by default; Traefik is the piece `k3d.yaml` turns off) binds port 80 on the node and forwards to the ingress-nginx pod.
+> 
+> 3. **Ingress `forgejo`.** `ingressClassName: nginx` selects that controller. The rule has no host and path `/`, so both `127.0.0.1:8080` and `localhost:8080` match. The backend is Service `forgejo` port 3000.
+> 
+> 4. **Auth subrequest, still inside the cluster.** Before proxying, nginx calls `auth-url`: `http://forgejo-auth.default.svc.cluster.local:8080/auth`. That is Service `forgejo-auth` port 8080, which targets the auth pod's container port 8080. This 8080 is not the browser's 8080. A 200 response supplies `X-WEBAUTH-USER` and `X-WEBAUTH-EMAIL`, and `auth-response-headers` copies them onto the upstream request.
+> 
+> 5. **Forgejo.** Service `forgejo` port 3000 selects pods labeled `app: forgejo` and targets container port `http` (3000). The ingress pod IP is in `10.42.0.0/16`, which `REVERSE_PROXY_TRUSTED_PROXIES` trusts, so Forgejo accepts those headers as the logged-in user. `ROOT_URL` is `http://127.0.0.1:8080/`, so links it generates use that address. The response travels back along the same path.
+
 # k3d-lab: instructions
 
 Run these from `k3d-lab`. The `kubectl apply` steps use `KUBECONFIG` from the shell. I.e. the step `export KUBECONFIG=...` should have happened.

@@ -1,7 +1,7 @@
 {
   "name": "famiprog-vscode-forgejo",
   "publisher": "famiprog",
-  "version": "0.2.0-snapshot",
+  "version": "0.2.0",
   "type": "module",
   "engines": {
     "vscode": "^1.120.0"
@@ -10,6 +10,7 @@
     "Other"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onFileSystem:forgejo"
   ],
   "main": "./dist/node/extension.cjs",
@@ -23,6 +24,11 @@
       {
         "command": "famiprog-vscode-forgejo.openMyRepo",
         "title": "Forgejo: My repos -> open one",
+        "enablement": "config.famiprog-vscode-forgejo.embedderUrl != ''"
+      },
+      {
+        "command": "famiprog-vscode-forgejo.openMyRepos",
+        "title": "Forgejo: My repos -> open all",
         "enablement": "config.famiprog-vscode-forgejo.embedderUrl != ''"
       },
       {
@@ -49,6 +55,12 @@
           "default": "",
           "scope": "application",
           "description": "Origin of the Forgejo server this workbench is embedded in."
+        },
+        "famiprog-vscode-forgejo.openAllMyReposAtStartup": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "description": "At startup, run Forgejo: My repos -> open all."
         }
       }
     },

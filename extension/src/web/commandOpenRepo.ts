@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import { RepoUri } from './RepoUri';
 
+export const COMMAND_OPEN_REPO = 'famiprog-vscode-forgejo.openRepo';
+
 export function register() {
-    return vscode.commands.registerCommand('famiprog-vscode-forgejo.openRepo', command);
+    return vscode.commands.registerCommand(COMMAND_OPEN_REPO, command);
 }
 
 async function command(): Promise<vscode.Uri | undefined> {

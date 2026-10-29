@@ -3,8 +3,10 @@ import { ForgejoFileSystemProvider } from './ForgejoFileSystemProvider';
 import { Repo } from './Repo';
 import { RepoUri } from './RepoUri';
 
+export const COMMAND_SET_ACCESS_TOKEN = 'famiprog-vscode-forgejo.setAccessToken';
+
 export function register(provider: ForgejoFileSystemProvider) {
-    return vscode.commands.registerCommand('famiprog-vscode-forgejo.setAccessToken', (arg?: unknown) => command(provider, arg));
+    return vscode.commands.registerCommand(COMMAND_SET_ACCESS_TOKEN, (arg?: unknown) => command(provider, arg));
 }
 
 async function command(provider: ForgejoFileSystemProvider, arg: unknown): Promise<void> {

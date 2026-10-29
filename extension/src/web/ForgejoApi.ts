@@ -17,21 +17,12 @@ const TREE_PAGE_SIZE = 1000;
 /** Forgejo's default `MAX_RESPONSE_ITEMS`. A shorter page means there is no next page. */
 const REPO_LIST_PAGE_SIZE = 50;
 
-export class ForgejoApi {
-
-    /** Set in {@link create} or {@link setAccessToken} once the branch to read is known. */
-    protected ref!: string;
-
-    /** Forgejo personal access token. Sent as `Authorization: token <value>`. */
-    accessToken?: string;
-
-    private givenRef: string | undefined;
-
+export class ForgejoApiGeneric {
     /**
      * Requests use `fetch`, which the browser extension host and the recorded tests both intercept.
      * `false` keeps axios from adding `Accept` and `User-Agent`; the recordings have no request headers.
      */
-    private readonly http = axios.create({
+    protected readonly http = axios.create({
         adapter: 'fetch',
         headers: { Accept: false, 'User-Agent': false },
     });
@@ -42,12 +33,12 @@ export class ForgejoApi {
     }));
 
     /** Spread into every generated call so a failed response rejects and the return type says so. */
-    private readonly callOptions = {
+    protected readonly callOptions = {
         client: this.client,
         throwOnError: true as const,
     };
 
-    private constructor(readonly origin: string, readonly owner: string, readonly repoName: string) {
+    constructor(readonly origin: string) {
         this.http.interceptors.request.use(async config => {
             if (!await Repo.getIndexedDB()) {
                 // desktop mode
@@ -55,7 +46,7 @@ export class ForgejoApi {
             }
             // Ask every time. A host with sign-in refreshes the token when it is about to expire.
             // A host without sign-in returns nothing, and a public repo is read with no Authorization header.
-            const token = await vscode.commands.executeCommand<string | undefined>(COMMAND_GET_ACCESS_TOKEN) || this.accessToken;
+            const token = await vscode.commands.executeCommand<string | undefined>(COMMAND_GET_ACCESS_TOKEN);
             if (token) {
                 config.headers.set('Authorization', `token ${token}`);
             }
@@ -73,32 +64,42 @@ export class ForgejoApi {
     /**
      * `owner/repo` names the signed-in user can see: repos they own, collaborate on, or that belong to their orgs.
      * GET /user/repos. A name that is not in this list can still be opened by typing `owner/repo`.
-     *
-     * That route is not scoped to a repository. Owner and repo stay empty; the client only needs the origin.
      */
-    static async listVisibleRepoNames(origin: string): Promise<string[]> {
-        // const api = new ForgejoApi(origin.replace(/\/+$/, ''), '', '');
-        // const names: string[] = [];
-        // for (let page = 1; page <= 100; page++) {
-        //     const { data } = await forgejots.userCurrentListRepos({
-        //         ...api.callOptions,
-        //         query: { page, limit: REPO_LIST_PAGE_SIZE, order_by: 'alphabetically' },
-        //     });
-        //     const pageRepos = data ?? [];
-        //     for (const repo of pageRepos) {
-        //         const name = repo.full_name?.trim()
-        //             || (repo.owner?.login && repo.name ? `${repo.owner.login}/${repo.name}` : '');
-        //         if (name) {
-        //             names.push(name);
-        //         }
-        //     }
-        //     if (pageRepos.length < REPO_LIST_PAGE_SIZE) {
-        //         break;
-        //     }
-        // }
-        // names.sort((a, b) => a.localeCompare(b));
-        // return names;
-        return [];
+    async listVisibleRepoNames(): Promise<string[]> {
+        const names: string[] = [];
+        for (let page = 1; page <= 100; page++) {
+            const { data } = await forgejots.userCurrentListRepos({
+                ...this.callOptions,
+                query: { page, limit: REPO_LIST_PAGE_SIZE, order_by: 'alphabetically' },
+            });
+            const pageRepos = data ?? [];
+            for (const repo of pageRepos) {
+                const name = repo.full_name?.trim()
+                    || (repo.owner?.login && repo.name ? `${repo.owner.login}/${repo.name}` : '');
+                if (name) {
+                    names.push(name);
+                }
+            }
+            if (pageRepos.length < REPO_LIST_PAGE_SIZE) {
+                break;
+            }
+        }
+        names.sort((a, b) => a.localeCompare(b));
+        return names;
+    }
+}
+
+export class ForgejoApi extends ForgejoApiGeneric {
+
+    protected ref!: string;
+
+    /** Forgejo personal access token. Sent as `Authorization: token <value>`. */
+    accessToken?: string;
+
+    private givenRef: string | undefined;
+
+    constructor(origin: string, readonly owner: string, readonly repoName: string) {
+        super(origin);
     }
 
     /**
@@ -120,14 +121,6 @@ export class ForgejoApi {
             }
         }
         return result;
-    }
-
-    async retrieveOauthTokens() {
-        if (!await Repo.getIndexedDB()) {
-            // desktop mode
-            return;
-        }
-        // TODO use command GET_ACCESS_TOKEN and enrich the headers w/ the token
     }
 
     async setAccessToken(accessToken: string) {

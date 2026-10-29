@@ -1,15 +1,14 @@
 import { isAxiosError } from 'axios';
 import * as vscode from 'vscode';
-import { ForgejoApi } from './ForgejoApi';
+import { ForgejoApiGeneric } from './ForgejoApi';
 import { addRepoFolder } from './commandOpenRepo';
+import { CONFIG_CATEGORY, CONFIG_EMBEDDER_URL } from './config';
 import { RepoUri } from './RepoUri';
 
-/**
- * Shown when `famiprog-vscode-forgejo.embedderUrl` is set: this workbench is embedded in one Forgejo server.
- * The quick pick lists repos visible to the signed-in user, and also accepts a typed `owner/repo`.
- */
+export const COMMAND_OPEN_MY_REPO = 'famiprog-vscode-forgejo.openMyRepo';
+
 export function register() {
-    return vscode.commands.registerCommand('famiprog-vscode-forgejo.openMyRepo', command);
+    return vscode.commands.registerCommand(COMMAND_OPEN_MY_REPO, command);
 }
 
 async function command(): Promise<vscode.Uri | undefined> {
@@ -17,7 +16,7 @@ async function command(): Promise<vscode.Uri | undefined> {
     if (!origin) {
         return;
     }
-    const ownerRepo = await pickOwnerRepo(ForgejoApi.listVisibleRepoNames(origin));
+    const ownerRepo = await pickOwnerRepo(new ForgejoApiGeneric(origin).listVisibleRepoNames());
     if (!ownerRepo) {
         return;
     }
@@ -34,7 +33,7 @@ async function command(): Promise<vscode.Uri | undefined> {
 
 /** Origin from `famiprog-vscode-forgejo.embedderUrl`, without a trailing slash. */
 export function embedderOrigin(): string | undefined {
-    const value = vscode.workspace.getConfiguration('famiprog-vscode-forgejo').get<string>('embedderUrl')?.trim();
+    const value = vscode.workspace.getConfiguration(CONFIG_CATEGORY).get<string>(CONFIG_EMBEDDER_URL)?.trim();
     if (!value) {
         return undefined;
     }
@@ -107,7 +106,7 @@ function pickOwnerRepo(load: Promise<string[]>): Promise<string | undefined> {
     });
 }
 
-function listFailureMessage(error: unknown): string {
+export function listFailureMessage(error: unknown): string {
     if (isAxiosError(error) && error.response) {
         const status = error.response.status;
         if (status === 401 || status === 403) {

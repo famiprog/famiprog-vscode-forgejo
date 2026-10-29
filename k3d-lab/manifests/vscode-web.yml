@@ -83,3 +83,24 @@ spec:
             name: vscode-web
             port:
               number: 3002
+---
+# Disable "intercept to enforce auth" for the Webview service worker. Browsers reject a service worker whose script URL redirects.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vscode-web-service-worker
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /vscode-web/(node_modules/.*/webview/browser/pre/service-worker\.js)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: vscode-web
+            port:
+              number: 3002

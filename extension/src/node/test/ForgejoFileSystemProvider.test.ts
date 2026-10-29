@@ -56,9 +56,8 @@ suite("ForgejoFileSystemProvider", () => {
     // @ts-ignore
     delete global.navigator;
 
-
     /**
-     * Bootstrap of the "forgejo in vs code" experience. When the user inputs an URL of a forgejo repo, then a new workspace dir 
+     * `Open repo`. Bootstrap of the "forgejo in vs code" experience. When the user inputs an URL of a forgejo repo, then a new workspace dir 
      * is added w/ the `forgejo` scheme and "our URI". Because of the scheme, all the FS operations are managed by `ForgejoFileSystemProvider`.
      *
      * No tests.
