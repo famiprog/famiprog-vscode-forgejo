@@ -83,6 +83,9 @@ k3d cluster create --config k3d.yaml
 
 ## Kubeconfig
 
+UPDATE: no more needed; we had this because of the option: `updateDefaultKubeconfig: false`.
+
+<details>
 Cf. message at the end of cluster install:
 
 ```bash
@@ -96,6 +99,7 @@ An alternative way would be:
 k3d kubeconfig write forgejo-lab --output kubeconfig.yml --overwrite
 export KUBECONFIG="$PWD/kubeconfig.yml"
 ```
+</details>
 
 ## Install ingress-nginx
 
@@ -141,4 +145,10 @@ kubectl apply -f manifests/forgejo.yml
 ```bash
 ../vscode-web-docker/docker-build.sh
 ../vscode-web-docker/docker-publish-lab.sh
+```
+
+# On finish
+
+```sh
+k3d cluster delete forgejo-lab
 ```
